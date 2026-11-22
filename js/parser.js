@@ -18,6 +18,7 @@ const CATEGORIAS = {
       'manzana','manzanas','uvas','fresas','papaya','melon','sandia','pera','durazno',
       'maracuya','guanabana','lulo','mora','tomate de mesa','zanahoria','papa','cebolla',
       'lechuga','espinaca','brocoli','pepino','habichuela','arveja','lenteja',
+      'aguacate','aguacates','limon','limones','mandarina','mandarinas',
       'mercado','supermercado','tienda','minimercado','galeria','plaza de mercado',
       'exito','carulla','jumbo','olimpica','d1','ara','justo y bueno','makro','surtifamiliar',
       'rappi','domicilio','pedido','ifood','uber eats','dominos','pizza hut',
@@ -38,8 +39,14 @@ const CATEGORIAS = {
       'gasolina','combustible','diesel','acpm','full','galones','litros de gasolina',
       'aceite','lubricante','llantas','taller','mecanico','lavadero','lavada',
       'parqueadero','parking','parquear','soat','tecnomecanica','seguro carro','seguro moto',
+      // Pasajes con contexto
       'pasaje','tiquete','peaje','recarga','tarjeta tullave','mio card','civica',
+      'pasaje de bus','pasaje de metro','pasaje de subida','pasaje de bajada',
+      'pasaje subida','pasaje bajada','subida en bus','bajada en bus',
       'moto','bicicleta','cicla','patineta','scooter',
+      // Equipamiento de moto y bici
+      'casco','casco moto','casco bici','casco de moto','casco de bicicleta',
+      'guantes moto','rodilleras','chaleco reflectivo','impermeable moto',
       'fui en taxi','tome uber','cogi bus','llene gasolina','pague parqueadero'
     ]
   },
@@ -91,10 +98,15 @@ const CATEGORIAS = {
   servicios_publicos: {
     emoji: '💡', nombre: 'Servicios públicos', tipo: 'egreso',
     palabras: [
-      'agua','luz','energia','gas natural','gas domiciliario','acueducto','alcantarillado',
+      // No incluir 'agua' ni 'luz' solos — son ambiguos (bebida, fruta, claridad)
+      // Solo frases que claramente se refieren al servicio
+      'acueducto','alcantarillado',
+      'energia electrica','recibo de energia',
+      'gas natural','gas domiciliario',
       'epm','codensa','gases de occidente','naturgas','surtigas','triple a','emcali',
       'recibo de agua','recibo de luz','recibo de gas','servicio publico','factura servicio',
-      'pague recibo','pague agua','pague luz','pague gas'
+      'pague recibo','pague el agua','pague la luz','pague el gas','pague los servicios',
+      'servicios publicos'
     ]
   },
   telecomunicaciones: {
@@ -185,7 +197,8 @@ const CATEGORIAS = {
     emoji: '💅', nombre: 'Belleza', tipo: 'egreso',
     palabras: [
       'peluqueria','barberia','salon de belleza','estetica','spa','centro estetico',
-      'corte de cabello','corte','tinte','coloracion','decoloracion','permanente',
+      'corte de cabello','corte','corte de pelo','me corte el pelo','me hice el corte','me hice el cabello',
+      'tinte','coloracion','decoloracion','permanente',
       'manicure','pedicure','unas','acrilicas','gel unas','semipermanente','nail art',
       'depilacion','cera','laser','facial','limpieza facial','masaje','bronceado',
       'cejas','micropigmentacion','microblading','botox','relleno',
@@ -320,8 +333,11 @@ const Parser = (() => {
       if (slug === 'otros') continue;
       for (const palabra of (data.palabras || [])) {
         const pal = normalizar(palabra);
+        // Para palabras muy cortas (≤ 3 caracteres) usar word boundary
+        // para evitar falsos positivos (ej: "luz" en "luzca", "d1" exacto)
+        // Para todo lo demás, includes es suficiente y más preciso
         if (pal.length <= 3) {
-          if (new RegExp(`\\b${pal}\\b`).test(desc)) return slug;
+          if (new RegExp('(?:^|\\s|,)' + pal + '(?:\\s|,|$)', 'i').test(desc)) return slug;
         } else {
           if (desc.includes(pal)) return slug;
         }
@@ -464,32 +480,45 @@ const Parser = (() => {
   }
 
   // ── ANÁLISIS DE MÚLTIPLES PRODUCTOS ──────────────────────────
-  // Separa "compré 3 mangos y 1 camiseta" en items individuales
-  // y detecta la categoría de cada uno automáticamente.
-
-  // Separadores que indican múltiples productos en una oración
   const _reSep = /\s*(?:,\s*|\s+y\s+|\s+e\s+|\s+mas\s+|\s+más\s+|\s+también\s+|\s+tambien\s+|\s+además\s+|\s+ademas\s+|\s*\+\s*|\s*;\s*)\s*/i;
 
   /**
-   * Dado un texto ("3 mangos y 1 camiseta"), devuelve array de:
-   * { texto: string, categoria: string, emoji: string, nombre: string }
-   * Siempre devuelve al menos 1 elemento.
+   * Dado un texto, devuelve array de productos detectados.
+   * { texto, sinCantidad, categoria, emoji, nombre }
    */
   function analizarProductos(descripcion) {
     if (!descripcion) return [];
     const cats = getCategoriasMerged();
 
-    // Quitar verbo inicial: "compré", "gasté en", "fui a comprar", etc.
+    // Quitar verbo inicial y verbos intermedios de compra
     let textoLimpio = descripcion
-      .replace(/^(compré?|gasté?|pagué?|compre en|fui a comprar|compramos|compramos)\s+/i, '')
+      .replace(/^(compré?|gasté?|pagué?|compre en|fui a comprar|compramos|me hice|me hize|me corte|me corté)\s+/i, '')
+      .replace(/\s+(y\s+)?(compré?|gasté?|pagué?|compré un|compré una|compre un|compre una)\s+/gi, ' y ')
       .trim();
 
     // Dividir por separadores
-    const partes = textoLimpio.split(_reSep).map(p => p.trim()).filter(Boolean);
+    const partesRaw = textoLimpio.split(_reSep).map(p => p.trim()).filter(Boolean);
 
-    // Para cada parte, limpiar cantidad inicial y detectar categoría
+    // POST-PROCESO: fusionar fragmentos "huérfanos"
+    // Un fragmento es huérfano si tiene < 2 palabras Y no tiene ninguna palabra clave propia
+    const partes = [];
+    for (let i = 0; i < partesRaw.length; i++) {
+      const parte = partesRaw[i];
+      const palabras = parte.split(/\s+/).length;
+      const sinCant = parte.replace(/^\d+\s+/, '').replace(/^(un|una|unos|unas|el|la|los|las)\s+/i, '').trim();
+      const catParte = categorizarAuto(sinCant);
+
+      // Si el fragmento es muy corto (1 palabra) y no detectó categoría propia,
+      // lo fusionamos con el fragmento anterior
+      if (palabras === 1 && catParte === 'otros' && partes.length > 0) {
+        partes[partes.length - 1] += ' y ' + parte;
+      } else {
+        partes.push(parte);
+      }
+    }
+
+    // Construir resultado final
     return partes.map(parte => {
-      // Quitar cantidad: "3 mangos" → "mangos", "un taxi" → "taxi"
       const sinCantidad = parte
         .replace(/^\d+\s+/, '')
         .replace(/^(un|una|unos|unas|el|la|los|las)\s+/i, '')
@@ -500,19 +529,12 @@ const Parser = (() => {
         : categorizarAuto(parte);
 
       const info = cats[cat] || cats.otros;
-      return {
-        texto: parte,           // texto original del fragmento ("3 mangos")
-        sinCantidad,            // texto limpio ("mangos")
-        categoria: cat,
-        emoji: info.emoji,
-        nombre: info.nombre
-      };
+      return { texto: parte, sinCantidad, categoria: cat, emoji: info.emoji, nombre: info.nombre };
     });
   }
 
   /**
-   * Devuelve true si la descripción contiene múltiples productos
-   * de categorías distintas.
+   * True si hay múltiples productos de categorías distintas.
    */
   function esCompraMultiple(descripcion) {
     if (!descripcion || descripcion.trim().split(/\s+/).length < 3) return false;

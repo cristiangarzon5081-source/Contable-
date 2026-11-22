@@ -190,11 +190,8 @@ const App = (() => {
       });
     });
 
-    // Enfocar el primer campo de monto
-    setTimeout(() => {
-      const primer = panel.querySelector('.multi-monto-input');
-      if (primer) primer.focus();
-    }, 100);
+    // NO hacemos focus() aquí — robaría el foco del input de descripción
+    // y quitaría el teclado mientras el usuario sigue escribiendo.
 
     // Cambiar label del botón guardar
     document.getElementById('btn-guardar').innerHTML = `
@@ -254,6 +251,7 @@ const App = (() => {
         resetMulti();
         return;
       }
+      // 800ms de espera — no se dispara mientras sigues escribiendo
       catTimeout = setTimeout(() => {
         // ¿Contiene múltiples productos de distintas categorías?
         if (Parser.esCompraMultiple(texto)) {
