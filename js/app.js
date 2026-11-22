@@ -12,7 +12,8 @@ const App = (() => {
     dashboard: DashboardView,
     historial: HistorialView,
     prestamos: PrestamosView,
-    estadisticas: EstadisticasView
+    estadisticas: EstadisticasView,
+    categorias: CategoriasView
   };
 
   function init() {
@@ -33,7 +34,10 @@ const App = (() => {
     bindModalEntrada();
     bindModalPrestamo();
     bindModalAbono();
+    bindModalCategoria();
     bindFechaDefault();
+    // Cargar categorías personalizadas al inicio para que el categorizador las use
+    Parser.cargarCatsPersonalizadas().catch(() => {});
   }
 
   // ── NAVEGACIÓN ────────────────────────────────────────────────
@@ -288,6 +292,14 @@ const App = (() => {
     document.getElementById('abono-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
+    });
+  }
+
+  // ── MODAL CATEGORÍA ───────────────────────────────────────────
+  function bindModalCategoria() {
+    const modal = document.getElementById('modal-categoria');
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+      modal.classList.add('hidden');
     });
   }
 

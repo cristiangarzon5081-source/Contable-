@@ -1,26 +1,28 @@
 /**
- * CONTABLE - Base de datos local (IndexedDB via wrapper nativo)
+ * CONTABLE - Base de datos local (IndexedDB)
  * Almacena todo localmente en el dispositivo
  */
 
 const DB = (() => {
   const DB_NAME = 'contable_db';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;          // ← subimos versión para agregar store categorias
   let db = null;
 
   const STORES = {
     movimientos: 'movimientos',
     prestamos: 'prestamos',
-    abonos: 'abonos'
+    abonos: 'abonos',
+    categorias: 'categorias'     // ← nuevo
   };
 
   function open() {
     return new Promise((resolve, reject) => {
       if (db) { resolve(db); return; }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
+
       req.onupgradeneeded = e => {
         const d = e.target.result;
-        // Movimientos (ingresos/egresos)
+
         if (!d.objectStoreNames.contains(STORES.movimientos)) {
           const s = d.createObjectStore(STORES.movimientos, { keyPath: 'id', autoIncrement: true });
           s.createIndex('fecha', 'fecha');
@@ -28,20 +30,25 @@ const DB = (() => {
           s.createIndex('categoria', 'categoria');
           s.createIndex('cuenta', 'cuenta');
         }
-        // Préstamos
         if (!d.objectStoreNames.contains(STORES.prestamos)) {
           const s = d.createObjectStore(STORES.prestamos, { keyPath: 'id', autoIncrement: true });
-          s.createIndex('tipo', 'tipo'); // debo | me_deben
-          s.createIndex('estado', 'estado'); // activo | liquidado
+          s.createIndex('tipo', 'tipo');
+          s.createIndex('estado', 'estado');
           s.createIndex('persona', 'persona');
         }
-        // Abonos de préstamos
         if (!d.objectStoreNames.contains(STORES.abonos)) {
           const s = d.createObjectStore(STORES.abonos, { keyPath: 'id', autoIncrement: true });
           s.createIndex('prestamo_id', 'prestamo_id');
           s.createIndex('fecha', 'fecha');
         }
+        // Categorías personalizadas (creadas o editadas por el usuario)
+        if (!d.objectStoreNames.contains(STORES.categorias)) {
+          const s = d.createObjectStore(STORES.categorias, { keyPath: 'slug' });
+          // slug = identificador único ej: "ropa", "mi_categoria"
+          s.createIndex('tipo', 'tipo');   // 'egreso' | 'ingreso' | 'ambos'
+        }
       };
+
       req.onsuccess = e => { db = e.target.result; resolve(db); };
       req.onerror = e => reject(e.target.error);
     });
@@ -62,7 +69,7 @@ const DB = (() => {
   async function agregarMovimiento(data) {
     await open();
     const mov = {
-      tipo: data.tipo,           // 'ingreso' | 'egreso'
+      tipo: data.tipo,
       monto: data.monto,
       descripcion: data.descripcion || '',
       categoria: data.categoria || 'otros',
@@ -76,8 +83,7 @@ const DB = (() => {
   async function obtenerMovimientos(filtros = {}) {
     await open();
     return new Promise((resolve, reject) => {
-      const store = tx(STORES.movimientos);
-      const req = store.openCursor(null, 'prev');
+      const req = tx(STORES.movimientos).openCursor(null, 'prev');
       const result = [];
       req.onsuccess = e => {
         const cursor = e.target.result;
@@ -95,9 +101,7 @@ const DB = (() => {
           }
           if (pass) result.push(m);
           cursor.continue();
-        } else {
-          resolve(result);
-        }
+        } else resolve(result);
       };
       req.onerror = e => reject(e.target.error);
     });
@@ -114,8 +118,7 @@ const DB = (() => {
     return new Promise((resolve, reject) => {
       const req = store.get(id);
       req.onsuccess = e => {
-        const mov = { ...e.target.result, ...data };
-        const r2 = store.put(mov);
+        const r2 = store.put({ ...e.target.result, ...data });
         r2.onsuccess = () => resolve();
         r2.onerror = err => reject(err);
       };
@@ -126,26 +129,19 @@ const DB = (() => {
   // ── PRÉSTAMOS ─────────────────────────────────────────────────
   async function agregarPrestamo(data) {
     await open();
-    const p = {
-      tipo: data.tipo,             // 'debo' | 'me_deben'
-      persona: data.persona,
-      montoOriginal: data.montoOriginal,
-      interesMensual: data.interesMensual || 0,
-      numCuotas: data.numCuotas || null,
-      fechaInicio: data.fechaInicio || new Date().toISOString().split('T')[0],
-      fechaFin: data.fechaFin || null,
-      nota: data.nota || '',
-      estado: 'activo',
-      creadoEn: Date.now()
-    };
-    return promisify(tx(STORES.prestamos, 'readwrite').add(p));
+    return promisify(tx(STORES.prestamos, 'readwrite').add({
+      tipo: data.tipo, persona: data.persona,
+      montoOriginal: data.montoOriginal, interesMensual: data.interesMensual || 0,
+      numCuotas: data.numCuotas || null, fechaInicio: data.fechaInicio || new Date().toISOString().split('T')[0],
+      fechaFin: data.fechaFin || null, nota: data.nota || '',
+      estado: 'activo', creadoEn: Date.now()
+    }));
   }
 
   async function obtenerPrestamos(filtros = {}) {
     await open();
     return new Promise((resolve, reject) => {
-      const store = tx(STORES.prestamos);
-      const req = store.openCursor(null, 'prev');
+      const req = tx(STORES.prestamos).openCursor(null, 'prev');
       const result = [];
       req.onsuccess = e => {
         const cursor = e.target.result;
@@ -168,8 +164,7 @@ const DB = (() => {
     return new Promise((resolve, reject) => {
       const req = store.get(id);
       req.onsuccess = e => {
-        const p = { ...e.target.result, ...data };
-        const r2 = store.put(p);
+        const r2 = store.put({ ...e.target.result, ...data });
         r2.onsuccess = () => resolve();
         r2.onerror = err => reject(err);
       };
@@ -185,22 +180,17 @@ const DB = (() => {
   // ── ABONOS ────────────────────────────────────────────────────
   async function agregarAbono(data) {
     await open();
-    const a = {
-      prestamo_id: data.prestamo_id,
-      monto: data.monto,
+    return promisify(tx(STORES.abonos, 'readwrite').add({
+      prestamo_id: data.prestamo_id, monto: data.monto,
       fecha: data.fecha || new Date().toISOString().split('T')[0],
-      nota: data.nota || '',
-      creadoEn: Date.now()
-    };
-    return promisify(tx(STORES.abonos, 'readwrite').add(a));
+      nota: data.nota || '', creadoEn: Date.now()
+    }));
   }
 
   async function obtenerAbonos(prestamo_id) {
     await open();
     return new Promise((resolve, reject) => {
-      const store = tx(STORES.abonos);
-      const index = store.index('prestamo_id');
-      const req = index.getAll(prestamo_id);
+      const req = tx(STORES.abonos).index('prestamo_id').getAll(prestamo_id);
       req.onsuccess = e => resolve(e.target.result);
       req.onerror = e => reject(e.target.error);
     });
@@ -215,9 +205,48 @@ const DB = (() => {
     });
   }
 
+  // ── CATEGORÍAS PERSONALIZADAS ─────────────────────────────────
+  /**
+   * Guarda o actualiza una categoría personalizada.
+   * Si es una categoría base (definida en CATEGORIAS del parser),
+   * guarda solo el override (emoji/nombre), sin tocar las palabras clave base.
+   * Si es nueva, guarda todo.
+   *
+   * Estructura:
+   * { slug, nombre, emoji, tipo, palabras: [], esPersonalizada: bool, creadoEn }
+   */
+  async function guardarCategoria(data) {
+    await open();
+    const cat = {
+      slug: data.slug,
+      nombre: data.nombre,
+      emoji: data.emoji,
+      tipo: data.tipo || 'egreso',         // 'egreso' | 'ingreso' | 'ambos'
+      palabras: data.palabras || [],
+      esPersonalizada: data.esPersonalizada !== false,
+      creadoEn: data.creadoEn || Date.now()
+    };
+    return promisify(tx(STORES.categorias, 'readwrite').put(cat));
+  }
+
+  async function obtenerCategorias() {
+    await open();
+    return new Promise((resolve, reject) => {
+      const req = tx(STORES.categorias).getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function eliminarCategoria(slug) {
+    await open();
+    return promisify(tx(STORES.categorias, 'readwrite').delete(slug));
+  }
+
   return {
     agregarMovimiento, obtenerMovimientos, eliminarMovimiento, editarMovimiento,
     agregarPrestamo, obtenerPrestamos, actualizarPrestamo, eliminarPrestamo,
-    agregarAbono, obtenerAbonos, obtenerTodosAbonos
+    agregarAbono, obtenerAbonos, obtenerTodosAbonos,
+    guardarCategoria, obtenerCategorias, eliminarCategoria
   };
 })();

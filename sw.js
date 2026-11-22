@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contable-v1';
+const CACHE_NAME = 'contable-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   '/js/views/historial.js',
   '/js/views/prestamos.js',
   '/js/views/estadisticas.js',
+  '/js/views/categorias.js',
   '/js/app.js'
 ];
 
