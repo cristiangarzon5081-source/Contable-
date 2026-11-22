@@ -19,6 +19,15 @@ const CATEGORIAS = {
       'maracuya','guanabana','lulo','mora','tomate de mesa','zanahoria','papa','cebolla',
       'lechuga','espinaca','brocoli','pepino','habichuela','arveja','lenteja',
       'aguacate','aguacates','limon','limones','mandarina','mandarinas',
+      // Frutos secos y semillas
+      'nuez','nueces','mani','manes','almendra','almendras','pistacho','pistachos',
+      'marañon','maranon','anacardo','cashew','nogal','macadamia','avellana','avellanas',
+      'semillas','chia','quinoa','granola','avena','cereal','maiz','trigo',
+      // Lácteos y proteínas
+      'leche','yogur','yogurt','queso','mantequilla','crema de leche','huevos','huevo',
+      'carne','pollo asado','res','cerdo','salmon','atun','sardina','mariscos',
+      // Granos y otros
+      'lentejas','garbanzos','soya','tofu','proteina vegetal',
       'mercado','supermercado','tienda','minimercado','galeria','plaza de mercado',
       'exito','carulla','jumbo','olimpica','d1','ara','justo y bueno','makro','surtifamiliar',
       'rappi','domicilio','pedido','ifood','uber eats','dominos','pizza hut',

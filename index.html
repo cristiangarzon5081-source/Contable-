@@ -80,7 +80,7 @@
     <div class="modal-sheet">
       <div class="modal-handle"></div>
       <h2 class="modal-title">Registrar movimiento</h2>
-      
+
       <div class="tipo-selector">
         <button class="tipo-btn active" data-tipo="egreso">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -92,18 +92,24 @@
         </button>
       </div>
 
-      <div class="input-monto-wrap">
-        <span class="currency-symbol">$</span>
-        <input type="text" id="input-monto" class="input-monto" placeholder="0" inputmode="numeric" autocomplete="off" />
-      </div>
-
+      <!-- Campo descripción — siempre primero -->
       <div class="desc-field-wrap">
-        <input type="text" id="input-descripcion" class="input-desc" placeholder="¿En qué? Ej: 3 mangos y 1 camiseta, taxi..." autocomplete="off" />
+        <input type="text" id="input-descripcion" class="input-desc"
+          placeholder="¿Qué compraste o pagaste? Ej: taxi, 3 mangos y una camiseta..."
+          autocomplete="off" />
+        <!-- Indicador categoría única (modo simple) -->
         <div id="cat-detectada" class="cat-detectada hidden"></div>
       </div>
 
-      <!-- Panel multi-producto: aparece automáticamente cuando hay varios productos de distintas categorías -->
+      <!-- Panel multi-producto (modo multi) -->
       <div id="multi-panel" class="multi-panel hidden"></div>
+
+      <!-- Monto total — en modo multi se calcula automático y se deshabilita -->
+      <div class="input-monto-wrap" id="monto-wrap">
+        <span class="currency-symbol">$</span>
+        <input type="text" id="input-monto" class="input-monto" placeholder="0" inputmode="numeric" autocomplete="off" />
+      </div>
+      <div id="monto-auto-label" class="monto-auto-label hidden">Total calculado automáticamente</div>
 
       <div class="form-row">
         <div class="form-group">
@@ -125,6 +131,16 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         Guardar
       </button>
+    </div>
+  </div>
+
+  <!-- Selector de categoría en línea (para corregir categoría detectada) -->
+  <div id="modal-cat-selector" class="modal hidden" style="z-index:60;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet" style="max-height:70vh;">
+      <div class="modal-handle"></div>
+      <h3 class="modal-title" style="font-size:17px;">Cambiar categoría</h3>
+      <div id="cat-selector-lista" class="cat-selector-lista"></div>
     </div>
   </div>
 

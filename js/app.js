@@ -7,15 +7,17 @@ const App = (() => {
   let tipoMovimiento = 'egreso';
   let tipoPrestamo = 'debo';
   // Estado del panel multi-producto
-  let _productosDetectados = []; // Array de { texto, categoria, emoji, nombre, monto }
+  let _productosDetectados = [];
   let _modoMulti = false;
+  // Callback para cuando el usuario elige una categoría en el selector
+  let _catSelectorCallback = null;
 
   const VIEWS = {
-    dashboard: DashboardView,
-    historial: HistorialView,
-    prestamos: PrestamosView,
+    dashboard:   DashboardView,
+    historial:   HistorialView,
+    prestamos:   PrestamosView,
     estadisticas: EstadisticasView,
-    categorias: CategoriasView
+    categorias:  CategoriasView
   };
 
   function init() {
@@ -36,6 +38,7 @@ const App = (() => {
     bindModalPrestamo();
     bindModalAbono();
     bindModalCategoria();
+    bindCatSelector();
     bindFechaDefault();
     Parser.cargarCatsPersonalizadas().catch(() => {});
   }
@@ -69,16 +72,16 @@ const App = (() => {
 
   // ── MODAL ENTRADA ─────────────────────────────────────────────
   function abrirModalEntrada() {
-    const modal = document.getElementById('modal-entrada');
-    document.getElementById('input-monto').value = '';
     document.getElementById('input-descripcion').value = '';
+    document.getElementById('input-monto').value = '';
     document.getElementById('input-fecha').value = new Date().toISOString().split('T')[0];
     document.getElementById('select-cuenta').value = 'efectivo';
     ocultarCatDetectada();
     resetMulti();
     setTipoMovimiento('egreso');
-    modal.classList.remove('hidden');
-    setTimeout(() => document.getElementById('input-monto').focus(), 300);
+    document.getElementById('modal-entrada').classList.remove('hidden');
+    // Foco en descripción — es el primer campo ahora
+    setTimeout(() => document.getElementById('input-descripcion').focus(), 300);
   }
 
   function cerrarModalEntrada() {
@@ -93,142 +96,187 @@ const App = (() => {
     });
   }
 
-  // ── INDICADOR DE CATEGORÍA ÚNICA ─────────────────────────────
+  // ── INDICADOR CATEGORÍA ÚNICA (modo simple) ──────────────────
   function mostrarCatDetectada(cat) {
     const el = document.getElementById('cat-detectada');
     if (!el) return;
-    const info = (Parser.getCategoriasMerged()[cat] || Parser.CATEGORIAS.otros);
-    const nombreCat = info.nombre || (cat.charAt(0).toUpperCase() + cat.slice(1));
+    const info = Parser.getCategoriasMerged()[cat] || Parser.CATEGORIAS.otros;
+    const nombreCat = info.nombre || cat;
     el.className = `cat-detectada ${cat === 'otros' ? 'otros' : ''}`;
     el.innerHTML = `
       <span class="cat-detectada-emoji">${info.emoji}</span>
-      <span class="cat-detectada-label">Categoría detectada: <strong>${nombreCat}</strong></span>
+      <span class="cat-detectada-label">Categoría: <strong>${nombreCat}</strong></span>
     `;
     el.classList.remove('hidden');
     document.getElementById('input-descripcion').style.borderRadius = '12px 12px 0 0';
+
+    // Al tocar el indicador → abrir selector para corregir
+    el.onclick = () => {
+      abrirCatSelector(cat, nuevaCat => {
+        const info2 = Parser.getCategoriasMerged()[nuevaCat] || Parser.CATEGORIAS.otros;
+        el.dataset.catOverride = nuevaCat;
+        el.querySelector('.cat-detectada-emoji').textContent = info2.emoji;
+        el.querySelector('strong').textContent = info2.nombre || nuevaCat;
+      });
+    };
   }
 
   function ocultarCatDetectada() {
     const el = document.getElementById('cat-detectada');
-    if (el) el.classList.add('hidden');
+    if (el) { el.classList.add('hidden'); el.dataset.catOverride = ''; el.onclick = null; }
     const inp = document.getElementById('input-descripcion');
     if (inp) inp.style.borderRadius = '';
   }
 
-  // ── PANEL MULTI-PRODUCTO ──────────────────────────────────────
-  /**
-   * Cuando el usuario escribe algo con múltiples productos de distintas
-   * categorías ("3 mangos y 1 camiseta"), aparece este panel.
-   * Muestra cada producto con su categoría detectada y un campo de monto.
-   * El usuario solo pone los montos — la categoría ya está asignada.
-   */
+  // ── SELECTOR DE CATEGORÍA ─────────────────────────────────────
+  function bindCatSelector() {
+    const modal = document.getElementById('modal-cat-selector');
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      _catSelectorCallback = null;
+    });
+  }
+
+  function abrirCatSelector(catActual, callback) {
+    _catSelectorCallback = callback;
+    const cats = Parser.getCategoriasMerged();
+    const lista = document.getElementById('cat-selector-lista');
+    lista.innerHTML = Object.entries(cats)
+      .filter(([slug]) => slug !== 'otros')
+      .concat([['otros', cats.otros]])
+      .map(([slug, c]) => `
+        <div class="cat-selector-item ${slug === catActual ? 'selected' : ''}" data-slug="${slug}">
+          <span class="cat-selector-emoji">${c.emoji}</span>
+          <span class="cat-selector-nombre">${c.nombre || slug}</span>
+        </div>
+      `).join('');
+
+    lista.querySelectorAll('.cat-selector-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.getElementById('modal-cat-selector').classList.add('hidden');
+        if (_catSelectorCallback) _catSelectorCallback(item.dataset.slug);
+        _catSelectorCallback = null;
+      });
+    });
+
+    document.getElementById('modal-cat-selector').classList.remove('hidden');
+  }
+
+  // ── MODO MULTI-PRODUCTO ───────────────────────────────────────
   function resetMulti() {
     _modoMulti = false;
     _productosDetectados = [];
     const panel = document.getElementById('multi-panel');
     if (panel) panel.classList.add('hidden');
-    // Restaurar label del botón guardar
-    const btnGuardar = document.getElementById('btn-guardar');
-    if (btnGuardar) btnGuardar.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      Guardar
-    `;
+    // Restaurar campo de monto
+    const montoWrap = document.getElementById('monto-wrap');
+    if (montoWrap) montoWrap.classList.remove('auto-calculado');
+    const montoLabel = document.getElementById('monto-auto-label');
+    if (montoLabel) montoLabel.classList.add('hidden');
+    const inputMonto = document.getElementById('input-monto');
+    if (inputMonto) { inputMonto.readOnly = false; }
+    // Restaurar botón guardar
+    const btn = document.getElementById('btn-guardar');
+    if (btn) btn.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>Guardar`;
   }
 
   function activarModoMulti(productos) {
     _modoMulti = true;
     _productosDetectados = productos.map(p => ({ ...p, monto: 0 }));
+    ocultarCatDetectada();
 
-    const panel = document.getElementById('multi-panel');
-    ocultarCatDetectada(); // Ocultar el indicador de categoría única
+    // Bloquear el campo de monto — se calcula automático
+    const montoWrap = document.getElementById('monto-wrap');
+    montoWrap.classList.add('auto-calculado');
+    document.getElementById('input-monto').value = '$0';
+    document.getElementById('input-monto').readOnly = true;
+    document.getElementById('monto-auto-label').classList.remove('hidden');
 
     // Construir el panel
+    const panel = document.getElementById('multi-panel');
     panel.innerHTML = `
       <div class="multi-header">
-        <span class="multi-titulo">📦 Detecté ${productos.length} productos — pon el valor de cada uno</span>
+        <span class="multi-titulo">📦 ${productos.length} productos detectados — agrega el valor de cada uno</span>
       </div>
-      <div class="multi-lista" id="multi-lista">
-        ${productos.map((p, i) => `
-          <div class="multi-item" data-index="${i}">
-            <div class="multi-item-left">
-              <span class="multi-item-emoji">${p.emoji}</span>
-              <div class="multi-item-info">
-                <div class="multi-item-texto">${p.texto}</div>
-                <div class="multi-item-cat">${p.nombre}</div>
-              </div>
-            </div>
-            <div class="multi-item-monto-wrap">
-              <span class="multi-currency">$</span>
-              <input
-                type="text"
-                class="multi-monto-input"
-                data-index="${i}"
-                placeholder="0"
-                inputmode="numeric"
-                autocomplete="off"
-              />
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      <div class="multi-footer" id="multi-footer">
-        <span class="multi-total-label">Total asignado:</span>
-        <span class="multi-total-val" id="multi-total-val">$0</span>
+      <div id="multi-lista">
+        ${productos.map((p, i) => buildMultiItem(p, i)).join('')}
       </div>
     `;
-
     panel.classList.remove('hidden');
 
-    // Bindings de los inputs de monto
+    bindMultiItemEvents();
+
+    // Cambiar botón
+    document.getElementById('btn-guardar').innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>Guardar ${productos.length} movimientos`;
+  }
+
+  function buildMultiItem(p, i) {
+    return `
+      <div class="multi-item" data-index="${i}">
+        <div class="multi-item-left">
+          <span class="multi-item-emoji">${p.emoji}</span>
+          <div class="multi-item-info">
+            <div class="multi-item-texto">${p.texto}</div>
+            <button class="multi-item-cat-btn" data-index="${i}" title="Tocar para cambiar categoría">
+              ${p.nombre} ✎
+            </button>
+          </div>
+        </div>
+        <div class="multi-item-monto-wrap">
+          <span class="multi-currency">$</span>
+          <input type="text" class="multi-monto-input" data-index="${i}"
+            placeholder="0" inputmode="numeric" autocomplete="off" />
+        </div>
+      </div>
+    `;
+  }
+
+  function bindMultiItemEvents() {
+    const panel = document.getElementById('multi-panel');
+
+    // Inputs de monto
     panel.querySelectorAll('.multi-monto-input').forEach(inp => {
       inp.addEventListener('input', e => {
         let val = e.target.value.replace(/[^0-9]/g, '');
         if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
         const idx = parseInt(e.target.dataset.index);
         _productosDetectados[idx].monto = parseInt(val || '0', 10);
-        actualizarTotalMulti();
+        recalcularTotalMulti();
       });
     });
 
-    // NO hacemos focus() aquí — robaría el foco del input de descripción
-    // y quitaría el teclado mientras el usuario sigue escribiendo.
-
-    // Cambiar label del botón guardar
-    document.getElementById('btn-guardar').innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      Guardar ${productos.length} movimientos
-    `;
+    // Botones de cambio de categoría
+    panel.querySelectorAll('.multi-item-cat-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.index);
+        const catActual = _productosDetectados[idx].categoria;
+        abrirCatSelector(catActual, nuevaCat => {
+          const info = Parser.getCategoriasMerged()[nuevaCat] || Parser.CATEGORIAS.otros;
+          _productosDetectados[idx].categoria = nuevaCat;
+          _productosDetectados[idx].emoji = info.emoji;
+          _productosDetectados[idx].nombre = info.nombre || nuevaCat;
+          // Actualizar el ítem en el DOM
+          const item = panel.querySelector(`.multi-item[data-index="${idx}"]`);
+          if (item) {
+            item.querySelector('.multi-item-emoji').textContent = info.emoji;
+            item.querySelector('.multi-item-cat-btn').textContent = `${info.nombre || nuevaCat} ✎`;
+          }
+        });
+      });
+    });
   }
 
-  function actualizarTotalMulti() {
+  function recalcularTotalMulti() {
     const suma = _productosDetectados.reduce((s, p) => s + (p.monto || 0), 0);
-    const el = document.getElementById('multi-total-val');
-    if (!el) return;
-
-    // Comparar con el monto total ingresado arriba
-    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
-    const montoTotal = parseFloat(montoRaw) || 0;
-
-    el.textContent = Parser.formatCOP(suma);
-    const footer = document.getElementById('multi-footer');
-    if (!footer) return;
-
-    if (montoTotal > 0) {
-      const diff = montoTotal - suma;
-      if (Math.abs(diff) < 1) {
-        footer.className = 'multi-footer ok';
-        footer.innerHTML = `<span>✅ Total cuadra: ${Parser.formatCOP(suma)}</span>`;
-      } else if (diff > 0) {
-        footer.className = 'multi-footer warn';
-        footer.innerHTML = `<span>Faltan <strong>${Parser.formatCOP(diff)}</strong> por asignar (total: ${Parser.formatCOP(montoTotal)})</span>`;
-      } else {
-        footer.className = 'multi-footer err';
-        footer.innerHTML = `<span>⚠️ Excedes por <strong>${Parser.formatCOP(Math.abs(diff))}</strong> (total: ${Parser.formatCOP(montoTotal)})</span>`;
-      }
-    } else {
-      footer.className = 'multi-footer';
-      footer.innerHTML = `<span class="multi-total-label">Total asignado:</span> <span class="multi-total-val">${Parser.formatCOP(suma)}</span>`;
-    }
+    const inputMonto = document.getElementById('input-monto');
+    inputMonto.value = suma > 0 ? suma.toLocaleString('es-CO') : '';
   }
 
   function bindModalEntrada() {
@@ -240,20 +288,15 @@ const App = (() => {
       btn.addEventListener('click', () => setTipoMovimiento(btn.dataset.tipo));
     });
 
-    // Categorización automática en tiempo real
+    // Campo de descripción: detectar en tiempo real
     const inputDesc = document.getElementById('input-descripcion');
     let catTimeout;
     inputDesc.addEventListener('input', () => {
       clearTimeout(catTimeout);
       const texto = inputDesc.value.trim();
-      if (!texto) {
-        ocultarCatDetectada();
-        resetMulti();
-        return;
-      }
-      // 800ms de espera — no se dispara mientras sigues escribiendo
+      if (!texto) { ocultarCatDetectada(); resetMulti(); return; }
+      // 800ms de espera para no interrumpir mientras escribe
       catTimeout = setTimeout(() => {
-        // ¿Contiene múltiples productos de distintas categorías?
         if (Parser.esCompraMultiple(texto)) {
           const productos = Parser.analizarProductos(texto);
           activarModoMulti(productos);
@@ -262,46 +305,66 @@ const App = (() => {
           const cat = Parser.categorizarAuto(texto);
           mostrarCatDetectada(cat);
         }
-      }, 350);
+      }, 800);
     });
 
-    // Formato de monto
+    // Campo de monto (solo en modo simple)
     document.getElementById('input-monto').addEventListener('input', e => {
+      if (_modoMulti) return; // En modo multi está bloqueado
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
-      if (_modoMulti) actualizarTotalMulti();
     });
 
     inputDesc.addEventListener('keydown', e => {
       if (e.key === 'Enter') guardarMovimiento();
     });
-
     document.getElementById('btn-guardar').addEventListener('click', guardarMovimiento);
   }
 
   async function guardarMovimiento() {
-    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
-    const monto = parseFloat(montoRaw);
     const descripcion = document.getElementById('input-descripcion').value.trim();
     const cuenta = document.getElementById('select-cuenta').value;
     const fecha = document.getElementById('input-fecha').value;
+
+    // ── MODO MULTI ────────────────────────────────────────────
+    if (_modoMulti && _productosDetectados.length > 0) {
+      const conMonto = _productosDetectados.filter(p => p.monto > 0);
+      if (!conMonto.length) {
+        vibrar();
+        // Enfocar el primer campo de monto sin quitar el teclado
+        const primerInput = document.querySelector('.multi-monto-input');
+        if (primerInput) primerInput.focus();
+        return;
+      }
+      for (const p of conMonto) {
+        await DB.agregarMovimiento({
+          tipo: tipoMovimiento, monto: p.monto,
+          descripcion: p.texto, categoria: p.categoria, cuenta, fecha
+        });
+      }
+      cerrarModalEntrada();
+      navegarA(vistaActual);
+      return;
+    }
+
+    // ── MODO SIMPLE ───────────────────────────────────────────
+    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
+    const monto = parseFloat(montoRaw);
 
     if (!monto || monto <= 0) {
       vibrar();
       const inp = document.getElementById('input-monto');
       inp.style.outline = '2px solid var(--red)';
       setTimeout(() => inp.style.outline = '', 1500);
+      inp.focus();
       return;
     }
 
-    // Modo multi-producto
-    if (_modoMulti && _productosDetectados.length > 0) {
-      await guardarMultiProducto(descripcion, cuenta, fecha, monto);
-      return;
-    }
+    // Usar la categoría corregida si el usuario la cambió manualmente
+    const catEl = document.getElementById('cat-detectada');
+    const catOverride = catEl?.dataset?.catOverride;
+    const categoria = catOverride || Parser.categorizarAuto(descripcion) || 'otros';
 
-    // Modo simple
-    const categoria = Parser.categorizarAuto(descripcion) || 'otros';
     try {
       await DB.agregarMovimiento({ tipo: tipoMovimiento, monto, descripcion, categoria, cuenta, fecha });
       cerrarModalEntrada();
@@ -309,58 +372,6 @@ const App = (() => {
     } catch (e) {
       alert('Error al guardar. Intenta de nuevo.');
     }
-  }
-
-  async function guardarMultiProducto(descripcion, cuenta, fecha, montoTotal) {
-    // Filtrar solo los que tienen monto > 0
-    const conMonto = _productosDetectados.filter(p => p.monto > 0);
-    const sinMonto = _productosDetectados.filter(p => !p.monto || p.monto <= 0);
-
-    if (!conMonto.length) {
-      // Ningún monto ingresado → guardar como uno solo con categoría del primero
-      const cat = _productosDetectados[0]?.categoria || 'otros';
-      await DB.agregarMovimiento({ tipo: tipoMovimiento, monto: montoTotal, descripcion, categoria: cat, cuenta, fecha });
-      cerrarModalEntrada();
-      navegarA(vistaActual);
-      return;
-    }
-
-    // Guardar los que tienen monto
-    for (const p of conMonto) {
-      await DB.agregarMovimiento({
-        tipo: tipoMovimiento,
-        monto: p.monto,
-        descripcion: p.texto,
-        categoria: p.categoria,
-        cuenta,
-        fecha
-      });
-    }
-
-    // Si hay productos sin monto y la suma no cierra, guardar la diferencia como "otros"
-    const sumaAsignada = conMonto.reduce((s, p) => s + p.monto, 0);
-    const diferencia = montoTotal - sumaAsignada;
-    if (diferencia > 1 && sinMonto.length > 0) {
-      // Repartir la diferencia en los productos sin monto
-      const montoPorItem = Math.floor(diferencia / sinMonto.length);
-      for (let i = 0; i < sinMonto.length; i++) {
-        const p = sinMonto[i];
-        const m = i === sinMonto.length - 1 ? diferencia - montoPorItem * i : montoPorItem;
-        if (m > 0) {
-          await DB.agregarMovimiento({
-            tipo: tipoMovimiento,
-            monto: m,
-            descripcion: p.texto,
-            categoria: p.categoria,
-            cuenta,
-            fecha
-          });
-        }
-      }
-    }
-
-    cerrarModalEntrada();
-    navegarA(vistaActual);
   }
 
   // ── MODAL PRÉSTAMO ────────────────────────────────────────────
@@ -468,7 +479,7 @@ const App = (() => {
   // ── MODAL CATEGORÍA ───────────────────────────────────────────
   function bindModalCategoria() {
     const modal = document.getElementById('modal-categoria');
-    modal.querySelector('.modal-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
+    if (modal) modal.querySelector('.modal-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
   }
 
   // ── UTILS ─────────────────────────────────────────────────────
