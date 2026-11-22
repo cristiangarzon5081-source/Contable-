@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6366f1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Contable" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/app.css" />
+  <title>Contable</title>
+</head>
+<body>
+  <div id="app">
+    <div id="splash" class="splash">
+      <div class="splash-logo">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="16" fill="#6366f1"/>
+          <path d="M20 44 L32 20 L44 44" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M24 36 L40 36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <span>Contable</span>
+      </div>
+    </div>
+    <div id="main" class="hidden">
+      <header class="app-header">
+        <div class="header-content">
+          <span class="app-title">Contable</span>
+          <button id="btn-add" class="btn-fab-header" aria-label="Agregar movimiento">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+      <main id="view-container"></main>
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Inicio</span>
+        </button>
+        <button class="nav-item" data-view="historial">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          <span>Historial</span>
+        </button>
+        <button class="nav-item" data-view="prestamos">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span>Préstamos</span>
+        </button>
+        <button class="nav-item" data-view="estadisticas">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span>Estadísticas</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Modal de entrada rápida -->
+  <div id="modal-entrada" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Registrar movimiento</h2>
+      
+      <div class="tipo-selector">
+        <button class="tipo-btn active" data-tipo="egreso">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          Egreso
+        </button>
+        <button class="tipo-btn" data-tipo="ingreso">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Ingreso
+        </button>
+      </div>
+
+      <div class="input-monto-wrap">
+        <span class="currency-symbol">$</span>
+        <input type="text" id="input-monto" class="input-monto" placeholder="0" inputmode="numeric" autocomplete="off" />
+      </div>
+
+      <input type="text" id="input-descripcion" class="input-desc" placeholder="¿En qué? (ej: almuerzo, taxi, nómina...)" autocomplete="off" />
+      
+      <div id="sugerencia-categoria" class="sugerencia-cat hidden"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cuenta</label>
+          <select id="select-cuenta" class="select-field">
+            <option value="efectivo">💵 Efectivo</option>
+            <option value="tarjeta_debito">💳 Tarjeta débito</option>
+            <option value="tarjeta_credito">💳 Tarjeta crédito</option>
+            <option value="banco">🏦 Banco</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="input-fecha" class="select-field" />
+        </div>
+      </div>
+
+      <div class="categorias-rapidas" id="cats-rapidas"></div>
+
+      <button id="btn-guardar" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Guardar
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de préstamo -->
+  <div id="modal-prestamo" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Registrar préstamo</h2>
+
+      <div class="tipo-selector">
+        <button class="tipo-btn active" data-prestamo="debo">Yo debo</button>
+        <button class="tipo-btn" data-prestamo="me_deben">Me deben</button>
+      </div>
+
+      <div class="input-monto-wrap">
+        <span class="currency-symbol">$</span>
+        <input type="text" id="prestamo-monto" class="input-monto" placeholder="0" inputmode="numeric" />
+      </div>
+
+      <input type="text" id="prestamo-persona" class="input-desc" placeholder="Nombre (persona, banco, entidad...)" />
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha inicio</label>
+          <input type="date" id="prestamo-fecha-inicio" class="select-field" />
+        </div>
+        <div class="form-group">
+          <label>Fecha límite</label>
+          <input type="date" id="prestamo-fecha-fin" class="select-field" placeholder="Opcional" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Interés mensual (%)</label>
+          <input type="number" id="prestamo-interes" class="select-field" placeholder="0 = sin interés" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label>N° cuotas</label>
+          <input type="number" id="prestamo-cuotas" class="select-field" placeholder="Libre" min="1" />
+        </div>
+      </div>
+
+      <div id="prestamo-preview" class="prestamo-preview hidden"></div>
+
+      <input type="text" id="prestamo-nota" class="input-desc" placeholder="Nota opcional..." />
+
+      <button id="btn-guardar-prestamo" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Guardar préstamo
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal abono préstamo -->
+  <div id="modal-abono" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title" id="abono-titulo">Registrar abono</h2>
+      <div class="input-monto-wrap">
+        <span class="currency-symbol">$</span>
+        <input type="text" id="abono-monto" class="input-monto" placeholder="0" inputmode="numeric" />
+      </div>
+      <input type="date" id="abono-fecha" class="select-field" style="width:100%;margin-bottom:12px;" />
+      <input type="text" id="abono-nota" class="input-desc" placeholder="Nota (opcional)" />
+      <button id="btn-guardar-abono" class="btn-primary">Registrar abono</button>
+    </div>
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/historial.js"></script>
+  <script src="js/views/prestamos.js"></script>
+  <script src="js/views/estadisticas.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
