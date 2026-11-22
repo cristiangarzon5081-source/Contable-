@@ -60,11 +60,11 @@ const DashboardView = (() => {
           <div class="saldo-sub">
             <div class="saldo-sub-item">
               <div class="saldo-sub-label">↑ Ingresos</div>
-              <div class="saldo-sub-val">${Parser.formatCOP(ingresos, true)}</div>
+              <div class="saldo-sub-val">${Parser.formatCOP(ingresos)}</div>
             </div>
             <div class="saldo-sub-item">
               <div class="saldo-sub-label">↓ Egresos</div>
-              <div class="saldo-sub-val">${Parser.formatCOP(egresos, true)}</div>
+              <div class="saldo-sub-val">${Parser.formatCOP(egresos)}</div>
             </div>
           </div>
           <div class="salud-badge ${saludClass}">${saludText}</div>
@@ -157,11 +157,11 @@ const DashboardView = (() => {
       <div class="resumen-prestamos">
         <div class="resumen-prestamo-card">
           <div class="rp-label">Yo debo</div>
-          <div class="rp-val rp-debo">${Parser.formatCOP(totalDebo, true)}</div>
+          <div class="rp-val rp-debo">${Parser.formatCOP(totalDebo)}</div>
         </div>
         <div class="resumen-prestamo-card">
           <div class="rp-label">Me deben</div>
-          <div class="rp-val rp-deben">${Parser.formatCOP(totalMeDeben, true)}</div>
+          <div class="rp-val rp-deben">${Parser.formatCOP(totalMeDeben)}</div>
         </div>
       </div>
     `;
@@ -174,40 +174,33 @@ const DashboardView = (() => {
     // Alerta: gastos superan ingresos este mes
     if (proy.egresosMes > proy.ingresosMes && proy.ingresosMes > 0) {
       alertas.push({
-        tipo: 'danger',
-        icono: '🔴',
-        mensaje: `Tus egresos (${Parser.formatCOP(proy.egresosMes, true)}) superan tus ingresos del mes (${Parser.formatCOP(proy.ingresosMes, true)}).`
+        tipo: 'danger', icono: '🔴',
+        mensaje: `Tus egresos (${Parser.formatCOP(proy.egresosMes)}) superan tus ingresos del mes (${Parser.formatCOP(proy.ingresosMes)}).`
       });
     }
-
     // Alerta: proyección negativa
     if (proy.proyeccionSaldo < 0 && proy.ingresosMes > 0) {
       alertas.push({
-        tipo: 'warn',
-        icono: '⚡',
-        mensaje: `Al ritmo actual terminarás el mes con déficit de ${Parser.formatCOP(Math.abs(proy.proyeccionSaldo), true)}.`
+        tipo: 'warn', icono: '⚡',
+        mensaje: `Al ritmo actual terminarás el mes con déficit de ${Parser.formatCOP(Math.abs(proy.proyeccionSaldo))}.`
       });
     }
-
     // Alerta: préstamos próximos a vencer
     for (const p of prestamos) {
       if (p.fechaFin) {
         const dias = Parser.diasEntre(hoy, p.fechaFin);
         if (dias >= 0 && dias <= 7) {
           alertas.push({
-            tipo: 'warn',
-            icono: '📅',
-            mensaje: `Préstamo con ${p.persona} vence en ${dias === 0 ? 'hoy' : dias + ' días'} (${Parser.formatCOP(p.montoOriginal, true)}).`
+            tipo: 'warn', icono: '📅',
+            mensaje: `Préstamo con ${p.persona} vence en ${dias === 0 ? 'hoy' : dias + ' días'} (${Parser.formatCOP(p.montoOriginal)}).`
           });
         }
       }
     }
-
     // Alerta: sin ingresos registrados este mes
     if (proy.ingresosMes === 0 && proy.egresosMes > 0) {
       alertas.push({
-        tipo: 'info',
-        icono: '💡',
+        tipo: 'info', icono: '💡',
         mensaje: 'No tienes ingresos registrados este mes. ¿Recibiste tu pago?'
       });
     }
@@ -226,7 +219,7 @@ const DashboardView = (() => {
           <div class="mov-desc">${m.descripcion || m.categoria}</div>
           <div class="mov-meta">${Parser.fechaLegible(m.fecha)} · ${m.cuenta}</div>
         </div>
-        <div class="mov-monto ${m.tipo}">${m.tipo === 'ingreso' ? '+' : '-'}${Parser.formatCOP(m.monto, true)}</div>
+        <div class="mov-monto ${m.tipo}">${m.tipo === 'ingreso' ? '+' : '-'}${Parser.formatCOP(m.monto)}</div>
       </div>
     `;
   }

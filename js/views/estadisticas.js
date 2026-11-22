@@ -112,17 +112,17 @@ const EstadisticasView = (() => {
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-label">Ingresos ${Parser.nombreMes(mesActual)}</div>
-            <div class="stat-val text-green">${Parser.formatCOP(mesHoy.ingresos, true)}</div>
+            <div class="stat-val text-green">${Parser.formatCOP(mesHoy.ingresos)}</div>
             ${cambioIngresos !== null ? `<div class="stat-change ${cambioIngresos >= 0 ? 'stat-up' : 'stat-down'}">${cambioIngresos >= 0 ? '▲' : '▼'} ${Math.abs(cambioIngresos)}% vs mes anterior</div>` : ''}
           </div>
           <div class="stat-card">
             <div class="stat-label">Egresos ${Parser.nombreMes(mesActual)}</div>
-            <div class="stat-val text-red">${Parser.formatCOP(mesHoy.egresos, true)}</div>
+            <div class="stat-val text-red">${Parser.formatCOP(mesHoy.egresos)}</div>
             ${cambioEgresos !== null ? `<div class="stat-change ${cambioEgresos <= 0 ? 'stat-up' : 'stat-down'}">${cambioEgresos >= 0 ? '▲' : '▼'} ${Math.abs(cambioEgresos)}% vs mes anterior</div>` : ''}
           </div>
           <div class="stat-card">
             <div class="stat-label">Gasto promedio diario</div>
-            <div class="stat-val">${Parser.formatCOP(promDiario, true)}</div>
+            <div class="stat-val">${Parser.formatCOP(promDiario)}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Cuenta favorita</div>
@@ -168,7 +168,7 @@ const EstadisticasView = (() => {
                   <div class="cat-item">
                     <div class="cat-header">
                       <div class="cat-name">${info.emoji} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</div>
-                      <div class="cat-monto">${Parser.formatCOP(monto, true)} <span style="font-size:11px;color:var(--text3)">${pct}%</span></div>
+                      <div class="cat-monto">${Parser.formatCOP(monto)} <span style="font-size:11px;color:var(--text3)">${pct}%</span></div>
                     </div>
                     <div class="cat-bar"><div class="cat-fill" style="width:${pct}%;background:${color}"></div></div>
                   </div>
@@ -208,7 +208,7 @@ const EstadisticasView = (() => {
                 <div class="comp-bar-wrap">
                   <div class="comp-bar" style="width:${pct}%;background:${esMesActual ? 'var(--red)' : 'var(--bg3)'}"></div>
                 </div>
-                <div class="comp-val" style="color:${esMesActual ? 'var(--red)' : 'var(--text2)'}">${Parser.formatCOP(d.egresos, true)}</div>
+                <div class="comp-val" style="color:${esMesActual ? 'var(--red)' : 'var(--text2)'}">${Parser.formatCOP(d.egresos)}</div>
               </div>
             `;
           }).join('')}

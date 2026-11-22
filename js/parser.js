@@ -12,15 +12,21 @@ const CATEGORIAS = {
       'almuerzo','comida','restaurante','desayuno','cena','merienda','onces','tinto','cafe','cafeteria',
       'pizza','hamburguesa','hamburgesa','hotdog','perro caliente','pollo','arroz','pasta','sopa',
       'sancocho','bandeja','arepas','empanadas','tamales','patacon','mondongo','changua','caldo','frijoles',
+      // Frutas específicas (evita confusión con marcas de ropa como "Mango")
       'frutas','verduras','legumbres','hortalizas','ensalada',
+      'mango','mangos','banano','bananos','platano','platanos','naranja','naranjas',
+      'manzana','manzanas','uvas','fresas','papaya','melon','sandia','pera','durazno',
+      'maracuya','guanabana','lulo','mora','tomate de mesa','zanahoria','papa','cebolla',
+      'lechuga','espinaca','brocoli','pepino','habichuela','arveja','lenteja',
       'mercado','supermercado','tienda','minimercado','galeria','plaza de mercado',
-      'exito','carulla','jumbo','olimpica','d1','ara','justo y bueno','metro','makro','surtifamiliar',
+      'exito','carulla','jumbo','olimpica','d1','ara','justo y bueno','makro','surtifamiliar',
       'rappi','domicilio','pedido','ifood','uber eats','dominos','pizza hut',
       'snack','dulces','chocolate','galletas','jugos','bebidas','gaseosa','cerveza','aguardiente',
       'ron','vino','licor','trago','helado','postres','panaderia','pan','tostadas','croissant',
       'mcdonalds','burger king','kentucky','kfc','subway','crepes','wok','frisby','presto',
       'el corral','popsy','sushi','tacos','burritos','lunch','brunch',
-      'comi','desayune','almhorce','cene','tome','bebi','compre comida','pedi domicilio'
+      'comi','desayune','almhorce','cene','tome','bebi','compre comida','pedi domicilio',
+      'compre frutas','compre verduras','compre en el mercado'
     ]
   },
   transporte: {
@@ -141,7 +147,8 @@ const CATEGORIAS = {
       'chaqueta','abrigo','saco','buzo','sudadera','hoodie','pijama',
       'tenis','zapatillas','zapatos','botas','sandalias','chanclas','tacones',
       'cinturon','bolso','cartera','gorra','sombrero',
-      'zara','bershka','pull and bear','stradivarius','mango','forever 21',
+      // NOTA: 'mango' eliminado — es fruta. Se mantiene 'tienda mango' para referirse a la marca
+      'tienda mango','zara','bershka','pull and bear','stradivarius','forever 21',
       'adidas','nike','puma','reebok','new balance','vans','converse',
       'temu','shein','falabella ropa','gef','pronto','chevignon','totto','colore',
       'compre ropa','compre camiseta','compre zapatos','compre jean','compre tenis'
@@ -444,11 +451,24 @@ const Parser = (() => {
       .replace(/^_|_$/g, '');
   }
 
+  // Detecta si una descripción corresponde a un lugar de compra mixta
+  // (supermercado, tienda grande donde se compran varias categorías)
+  const LUGARES_MIXTOS = [
+    'exito','carulla','jumbo','olimpica','metro','makro','surtifamiliar',
+    'supermercado','mercado','plaza de mercado','galeria','tienda mixta',
+    'd1','ara','justo y bueno','alkosto','homecenter','falabella'
+  ];
+
+  function esLugarMixto(descripcion) {
+    const desc = normalizar(descripcion);
+    return LUGARES_MIXTOS.some(lugar => desc.includes(normalizar(lugar)));
+  }
+
   return {
     cargarCatsPersonalizadas, invalidarCache, getCategoriasMerged,
-    parsearMonto, formatCOP, normalizar, categorizarAuto,
+    parsearMonto, formatCOP, normalizar, categorizarAuto, esLugarMixto,
     getRangoFecha, nombreMes, nombreMesLargo, fechaLegible, fechaGrupo,
     diasEntre, calcularPrestamo, proyectarMes, slugify,
-    CATEGORIAS
+    CATEGORIAS, LUGARES_MIXTOS
   };
 })();

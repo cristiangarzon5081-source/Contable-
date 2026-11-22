@@ -79,6 +79,7 @@ const App = (() => {
     document.getElementById('input-fecha').value = new Date().toISOString().split('T')[0];
     document.getElementById('select-cuenta').value = 'efectivo';
     ocultarCatDetectada();
+    ocultarDesglose();
     setTipoMovimiento('egreso');
     modal.classList.remove('hidden');
     setTimeout(() => document.getElementById('input-monto').focus(), 300);
@@ -86,6 +87,106 @@ const App = (() => {
 
   function cerrarModalEntrada() {
     document.getElementById('modal-entrada').classList.add('hidden');
+    ocultarDesglose();
+  }
+
+  // ── DESGLOSE (compras mixtas) ─────────────────────────────────
+  function mostrarDesglose() {
+    const wrap = document.getElementById('desglose-wrap');
+    wrap.classList.remove('hidden');
+  }
+
+  function ocultarDesglose() {
+    const wrap = document.getElementById('desglose-wrap');
+    if (wrap) wrap.classList.add('hidden');
+    const items = document.getElementById('desglose-items');
+    if (items) items.classList.add('hidden');
+    const btn = document.getElementById('btn-desglose-toggle');
+    if (btn) { btn.textContent = 'Sí, desglosar'; btn.classList.remove('activo'); }
+    const lista = document.getElementById('desglose-lista');
+    if (lista) lista.innerHTML = '';
+    const resumen = document.getElementById('desglose-resumen');
+    if (resumen) resumen.innerHTML = '';
+  }
+
+  function buildDesgloseItem(cats) {
+    const div = document.createElement('div');
+    div.className = 'desglose-item';
+    const catOpts = cats.map(([slug, c]) =>
+      `<option value="${slug}">${c.emoji} ${c.nombre}</option>`
+    ).join('');
+    div.innerHTML = `
+      <select class="desglose-item-cat">${catOpts}</select>
+      <input type="text" class="desglose-item-monto" placeholder="$0" inputmode="numeric" />
+      <button class="desglose-item-del" title="Quitar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    `;
+    // Formato monto
+    div.querySelector('.desglose-item-monto').addEventListener('input', e => {
+      let val = e.target.value.replace(/[^0-9]/g, '');
+      if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
+      actualizarResumenDesglose();
+    });
+    div.querySelector('.desglose-item-del').addEventListener('click', () => {
+      div.remove();
+      actualizarResumenDesglose();
+    });
+    return div;
+  }
+
+  function actualizarResumenDesglose() {
+    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
+    const montoTotal = parseFloat(montoRaw) || 0;
+    const items = document.querySelectorAll('.desglose-item');
+    let suma = 0;
+    items.forEach(item => {
+      const v = item.querySelector('.desglose-item-monto').value.replace(/\./g, '').replace(/,/g, '');
+      suma += parseFloat(v) || 0;
+    });
+    const resumen = document.getElementById('desglose-resumen');
+    if (!resumen || montoTotal === 0) return;
+    const diferencia = montoTotal - suma;
+    const clase = Math.abs(diferencia) < 1 ? 'desglose-ok' : diferencia > 0 ? 'desglose-warn' : 'desglose-err';
+    const msg = Math.abs(diferencia) < 1
+      ? '✅ Total cuadra'
+      : diferencia > 0
+        ? `Faltan $${Math.round(diferencia).toLocaleString('es-CO')} por asignar`
+        : `Excedes el total por $${Math.round(Math.abs(diferencia)).toLocaleString('es-CO')}`;
+    resumen.innerHTML = `<span class="${clase}">${msg}</span>`;
+  }
+
+  function bindDesglose() {
+    const btnToggle = document.getElementById('btn-desglose-toggle');
+    const itemsWrap = document.getElementById('desglose-items');
+    const lista = document.getElementById('desglose-lista');
+    const btnAdd = document.getElementById('btn-desglose-add');
+    if (!btnToggle) return;
+
+    btnToggle.addEventListener('click', () => {
+      const abierto = !itemsWrap.classList.contains('hidden');
+      if (abierto) {
+        itemsWrap.classList.add('hidden');
+        btnToggle.textContent = 'Sí, desglosar';
+        btnToggle.classList.remove('activo');
+        lista.innerHTML = '';
+      } else {
+        itemsWrap.classList.remove('hidden');
+        btnToggle.textContent = 'Cancelar';
+        btnToggle.classList.add('activo');
+        // Agregar dos ítems iniciales
+        const cats = Object.entries(Parser.getCategoriasMerged()).filter(([s]) => s !== 'otros');
+        lista.appendChild(buildDesgloseItem(cats));
+        lista.appendChild(buildDesgloseItem(cats));
+      }
+    });
+
+    btnAdd.addEventListener('click', () => {
+      const cats = Object.entries(Parser.getCategoriasMerged()).filter(([s]) => s !== 'otros');
+      lista.appendChild(buildDesgloseItem(cats));
+    });
   }
 
   function setTipoMovimiento(tipo) {
@@ -135,10 +236,16 @@ const App = (() => {
     inputDesc.addEventListener('input', () => {
       clearTimeout(catTimeout);
       const texto = inputDesc.value.trim();
-      if (!texto) { ocultarCatDetectada(); return; }
+      if (!texto) { ocultarCatDetectada(); ocultarDesglose(); return; }
       catTimeout = setTimeout(() => {
         const cat = Parser.categorizarAuto(texto);
         mostrarCatDetectada(cat);
+        // Detectar si es lugar de compra mixta
+        if (Parser.esLugarMixto(texto)) {
+          mostrarDesglose();
+        } else {
+          ocultarDesglose();
+        }
       }, 250);
     });
 
@@ -156,6 +263,7 @@ const App = (() => {
     });
 
     document.getElementById('btn-guardar').addEventListener('click', guardarMovimiento);
+    bindDesglose();
   }
 
   async function guardarMovimiento() {
@@ -173,9 +281,15 @@ const App = (() => {
       return;
     }
 
-    // La categoría se detecta automáticamente — el usuario no elige nada
-    const categoria = Parser.categorizarAuto(descripcion) || 'otros';
+    // Verificar si hay desglose activo
+    const desgloseActivo = !document.getElementById('desglose-items').classList.contains('hidden');
+    if (desgloseActivo) {
+      await guardarConDesglose(monto, descripcion, cuenta, fecha);
+      return;
+    }
 
+    // Sin desglose: guardado normal
+    const categoria = Parser.categorizarAuto(descripcion) || 'otros';
     try {
       await DB.agregarMovimiento({ tipo: tipoMovimiento, monto, descripcion, categoria, cuenta, fecha });
       cerrarModalEntrada();
@@ -183,6 +297,51 @@ const App = (() => {
     } catch (e) {
       alert('Error al guardar. Intenta de nuevo.');
     }
+  }
+
+  async function guardarConDesglose(montoTotal, descripcion, cuenta, fecha) {
+    const items = document.querySelectorAll('.desglose-item');
+    const movimientos = [];
+    let sumaDesglose = 0;
+
+    for (const item of items) {
+      const catSlug = item.querySelector('.desglose-item-cat').value;
+      const montoStr = item.querySelector('.desglose-item-monto').value.replace(/\./g, '').replace(/,/g, '');
+      const monto = parseFloat(montoStr);
+      if (!catSlug || !monto || monto <= 0) continue;
+      movimientos.push({ catSlug, monto });
+      sumaDesglose += monto;
+    }
+
+    if (!movimientos.length) {
+      // No completó el desglose — guardar como uno solo
+      const categoria = Parser.categorizarAuto(descripcion) || 'otros';
+      await DB.agregarMovimiento({ tipo: tipoMovimiento, monto: montoTotal, descripcion, categoria, cuenta, fecha });
+      cerrarModalEntrada();
+      navegarA(vistaActual);
+      return;
+    }
+
+    // Si la suma no cierra exactamente, agregar la diferencia en la primera categoría
+    const diferencia = montoTotal - sumaDesglose;
+    if (Math.abs(diferencia) > 1) {
+      if (!confirm(`La suma del desglose ($${sumaDesglose.toLocaleString('es-CO')}) no coincide con el total ($${montoTotal.toLocaleString('es-CO')}). ¿Guardar de todas formas?`)) return;
+    }
+
+    // Guardar cada ítem como movimiento separado
+    for (const mov of movimientos) {
+      await DB.agregarMovimiento({
+        tipo: tipoMovimiento,
+        monto: mov.monto,
+        descripcion: `${descripcion} — ${(Parser.getCategoriasMerged()[mov.catSlug]?.nombre || mov.catSlug)}`,
+        categoria: mov.catSlug,
+        cuenta,
+        fecha
+      });
+    }
+
+    cerrarModalEntrada();
+    navegarA(vistaActual);
   }
 
   // ── MODAL PRÉSTAMO ────────────────────────────────────────────

@@ -102,6 +102,20 @@
         <div id="cat-detectada" class="cat-detectada hidden"></div>
       </div>
 
+      <!-- Desglose para compras mixtas (aparece solo en supermercados/lugares mixtos) -->
+      <div id="desglose-wrap" class="desglose-wrap hidden">
+        <div class="desglose-header">
+          <span>🛒 Compra mixta detectada — ¿quieres dividirla por categoría?</span>
+          <button id="btn-desglose-toggle" class="desglose-toggle-btn">Sí, desglosar</button>
+        </div>
+        <div id="desglose-items" class="desglose-items hidden">
+          <p class="desglose-hint">Agrega cada parte de la compra con su categoría y monto. El total debe coincidir con el monto arriba.</p>
+          <div id="desglose-lista"></div>
+          <button id="btn-desglose-add" class="btn-desglose-add">+ Agregar ítem</button>
+          <div id="desglose-resumen" class="desglose-resumen"></div>
+        </div>
+      </div>
+
       <div class="form-row">
         <div class="form-group">
           <label>Cuenta</label>
