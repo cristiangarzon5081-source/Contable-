@@ -7,7 +7,6 @@ const App = (() => {
   let vistaActual = 'dashboard';
   let tipoMovimiento = 'egreso';
   let tipoPrestamo = 'debo';
-  let categoriaSeleccionada = null;
 
   const VIEWS = {
     dashboard: DashboardView,
@@ -16,16 +15,11 @@ const App = (() => {
     estadisticas: EstadisticasView
   };
 
-  const CATS_EGRESO = ['alimentacion','transporte','entretenimiento','servicios','salud','ropa','belleza','hogar','tecnologia','mascotas','educacion','otros'];
-  const CATS_INGRESO = ['salario','ventas','transferencia','otros'];
-
   function init() {
-    // Registrar service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
 
-    // Splash screen
     setTimeout(() => {
       document.getElementById('splash').style.opacity = '0';
       setTimeout(() => {
@@ -67,24 +61,21 @@ const App = (() => {
 
   function bindFechaDefault() {
     const hoy = new Date().toISOString().split('T')[0];
-    ['input-fecha','prestamo-fecha-inicio','abono-fecha'].forEach(id => {
+    ['input-fecha', 'prestamo-fecha-inicio', 'abono-fecha'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = hoy;
     });
   }
 
-  // ── MODAL ENTRADA (ingreso/egreso) ───────────────────────────
+  // ── MODAL ENTRADA ─────────────────────────────────────────────
   function abrirModalEntrada() {
     const modal = document.getElementById('modal-entrada');
-    // Reset
     document.getElementById('input-monto').value = '';
     document.getElementById('input-descripcion').value = '';
     document.getElementById('input-fecha').value = new Date().toISOString().split('T')[0];
     document.getElementById('select-cuenta').value = 'efectivo';
-    document.getElementById('sugerencia-categoria').classList.add('hidden');
-    categoriaSeleccionada = null;
+    ocultarCatDetectada();
     setTipoMovimiento('egreso');
-    renderCatsRapidas();
     modal.classList.remove('hidden');
     setTimeout(() => document.getElementById('input-monto').focus(), 300);
   }
@@ -98,33 +89,35 @@ const App = (() => {
     document.querySelectorAll('[data-tipo]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tipo === tipo);
     });
-    renderCatsRapidas();
   }
 
-  function renderCatsRapidas() {
-    const cats = tipoMovimiento === 'egreso' ? CATS_EGRESO : CATS_INGRESO;
-    const container = document.getElementById('cats-rapidas');
-    if (!container) return;
-    container.innerHTML = cats.map(c => {
-      const info = Parser.CATEGORIAS[c];
-      return `<button class="cat-chip ${categoriaSeleccionada === c ? 'selected' : ''}" data-cat="${c}">
-        ${info.emoji} ${c.charAt(0).toUpperCase() + c.slice(1)}
-      </button>`;
-    }).join('');
+  // Muestra la categoría detectada debajo del campo de descripción
+  function mostrarCatDetectada(cat) {
+    const el = document.getElementById('cat-detectada');
+    if (!el) return;
+    const info = Parser.CATEGORIAS[cat] || Parser.CATEGORIAS.otros;
+    const nombreCat = cat.charAt(0).toUpperCase() + cat.slice(1);
 
-    container.querySelectorAll('.cat-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        categoriaSeleccionada = chip.dataset.cat;
-        container.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-      });
-    });
+    el.className = `cat-detectada ${cat === 'otros' ? 'otros' : ''}`;
+    el.innerHTML = `
+      <span class="cat-detectada-emoji">${info.emoji}</span>
+      <span class="cat-detectada-label">
+        Categoría detectada: <strong>${nombreCat}</strong>
+      </span>
+    `;
+    el.classList.remove('hidden');
+    document.getElementById('input-descripcion').style.borderRadius = '12px 12px 0 0';
+  }
+
+  function ocultarCatDetectada() {
+    const el = document.getElementById('cat-detectada');
+    if (el) el.classList.add('hidden');
+    const inp = document.getElementById('input-descripcion');
+    if (inp) inp.style.borderRadius = '';
   }
 
   function bindModalEntrada() {
     const modal = document.getElementById('modal-entrada');
-
-    // Cerrar al tocar el backdrop
     modal.querySelector('.modal-backdrop').addEventListener('click', cerrarModalEntrada);
 
     // Selector de tipo
@@ -132,35 +125,20 @@ const App = (() => {
       btn.addEventListener('click', () => setTipoMovimiento(btn.dataset.tipo));
     });
 
-    // Auto-categorizar al escribir descripción
+    // Categorización automática en tiempo real mientras escribe
     const inputDesc = document.getElementById('input-descripcion');
     let catTimeout;
     inputDesc.addEventListener('input', () => {
       clearTimeout(catTimeout);
+      const texto = inputDesc.value.trim();
+      if (!texto) { ocultarCatDetectada(); return; }
       catTimeout = setTimeout(() => {
-        const texto = inputDesc.value.trim();
-        if (!texto) {
-          document.getElementById('sugerencia-categoria').classList.add('hidden');
-          return;
-        }
         const cat = Parser.categorizarAuto(texto);
-        if (cat !== 'otros' && cat !== categoriaSeleccionada) {
-          const info = Parser.CATEGORIAS[cat];
-          const sug = document.getElementById('sugerencia-categoria');
-          sug.innerHTML = `✨ Categoría sugerida: <strong>${info.emoji} ${cat}</strong>`;
-          sug.classList.remove('hidden');
-          sug.onclick = () => {
-            categoriaSeleccionada = cat;
-            renderCatsRapidas();
-            sug.classList.add('hidden');
-          };
-        } else {
-          document.getElementById('sugerencia-categoria').classList.add('hidden');
-        }
-      }, 400);
+        mostrarCatDetectada(cat);
+      }, 250);
     });
 
-    // Formato de monto mientras escribe
+    // Formato de monto (puntos de miles automáticos)
     document.getElementById('input-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) {
@@ -168,7 +146,11 @@ const App = (() => {
       }
     });
 
-    // Guardar
+    // Enter en descripción guarda
+    inputDesc.addEventListener('keydown', e => {
+      if (e.key === 'Enter') guardarMovimiento();
+    });
+
     document.getElementById('btn-guardar').addEventListener('click', guardarMovimiento);
   }
 
@@ -181,23 +163,25 @@ const App = (() => {
 
     if (!monto || monto <= 0) {
       vibrar();
-      document.getElementById('input-monto').style.outline = '2px solid var(--red)';
-      setTimeout(() => document.getElementById('input-monto').style.outline = '', 1500);
+      const inp = document.getElementById('input-monto');
+      inp.style.outline = '2px solid var(--red)';
+      setTimeout(() => inp.style.outline = '', 1500);
       return;
     }
 
-    const categoria = categoriaSeleccionada || Parser.categorizarAuto(descripcion) || 'otros';
+    // La categoría se detecta automáticamente — el usuario no elige nada
+    const categoria = Parser.categorizarAuto(descripcion) || 'otros';
 
     try {
       await DB.agregarMovimiento({ tipo: tipoMovimiento, monto, descripcion, categoria, cuenta, fecha });
       cerrarModalEntrada();
-      navegarA(vistaActual); // Refrescar vista actual
+      navegarA(vistaActual);
     } catch (e) {
       alert('Error al guardar. Intenta de nuevo.');
     }
   }
 
-  // ── MODAL PRÉSTAMO ───────────────────────────────────────────
+  // ── MODAL PRÉSTAMO ────────────────────────────────────────────
   function abrirModalPrestamo() {
     const modal = document.getElementById('modal-prestamo');
     document.getElementById('prestamo-monto').value = '';
@@ -232,7 +216,6 @@ const App = (() => {
       });
     });
 
-    // Formato monto préstamo
     document.getElementById('prestamo-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
@@ -251,26 +234,19 @@ const App = (() => {
     const monto = parseFloat(montoRaw);
     const interes = parseFloat(document.getElementById('prestamo-interes').value) || 0;
     const cuotas = parseInt(document.getElementById('prestamo-cuotas').value) || 0;
-
     const preview = document.getElementById('prestamo-preview');
+
     if (!monto || monto <= 0) { preview.classList.add('hidden'); return; }
 
     const calc = Parser.calcularPrestamo(monto, interes, cuotas || null);
     let texto = `💰 Monto: <strong>${Parser.formatCOP(monto)}</strong><br>`;
-
-    if (interes > 0) {
-      texto += `📈 Interés: ${interes}% mensual<br>`;
-    } else {
-      texto += `✅ Sin interés<br>`;
-    }
+    texto += interes > 0 ? `📈 Interés: ${interes}% mensual<br>` : `✅ Sin interés<br>`;
 
     if (cuotas > 0 && calc.cuotaMensual) {
       texto += `📅 ${cuotas} cuotas de <strong>${Parser.formatCOP(calc.cuotaMensual)}</strong><br>`;
-      if (calc.totalInteres > 0) {
-        texto += `💸 Total a pagar: ${Parser.formatCOP(calc.totalPagar)} (${Parser.formatCOP(calc.totalInteres)} en intereses)`;
-      } else {
-        texto += `✅ Total a pagar: ${Parser.formatCOP(calc.totalPagar)}`;
-      }
+      texto += calc.totalInteres > 0
+        ? `💸 Total a pagar: ${Parser.formatCOP(calc.totalPagar)} (${Parser.formatCOP(calc.totalInteres)} en intereses)`
+        : `✅ Total a pagar: ${Parser.formatCOP(calc.totalPagar)}`;
     }
 
     preview.innerHTML = texto;
@@ -292,14 +268,9 @@ const App = (() => {
 
     try {
       await DB.agregarPrestamo({
-        tipo: tipoPrestamo,
-        persona,
-        montoOriginal: monto,
-        interesMensual: interes,
-        numCuotas: cuotas,
-        fechaInicio,
-        fechaFin: fechaFin || null,
-        nota
+        tipo: tipoPrestamo, persona, montoOriginal: monto,
+        interesMensual: interes, numCuotas: cuotas,
+        fechaInicio, fechaFin: fechaFin || null, nota
       });
       cerrarModalPrestamo();
       navegarA('prestamos');
@@ -314,21 +285,18 @@ const App = (() => {
     modal.querySelector('.modal-backdrop').addEventListener('click', () => {
       modal.classList.add('hidden');
     });
-
     document.getElementById('abono-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
     });
   }
 
-  // ── UTILS ──────────────────────────────────────────────────────
+  // ── UTILS ─────────────────────────────────────────────────────
   function vibrar() {
     if (navigator.vibrate) navigator.vibrate(50);
   }
 
-  // Exponer para uso desde otros módulos
   return { init, navegarA, abrirModalEntrada, abrirModalPrestamo };
 })();
 
-// Iniciar la app cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => App.init());

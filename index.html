@@ -90,9 +90,10 @@
         <input type="text" id="input-monto" class="input-monto" placeholder="0" inputmode="numeric" autocomplete="off" />
       </div>
 
-      <input type="text" id="input-descripcion" class="input-desc" placeholder="¿En qué? (ej: almuerzo, taxi, nómina...)" autocomplete="off" />
-      
-      <div id="sugerencia-categoria" class="sugerencia-cat hidden"></div>
+      <div class="desc-field-wrap">
+        <input type="text" id="input-descripcion" class="input-desc" placeholder="¿En qué? Ej: almuerzo, camiseta en Temu, taxi..." autocomplete="off" />
+        <div id="cat-detectada" class="cat-detectada hidden"></div>
+      </div>
 
       <div class="form-row">
         <div class="form-group">
@@ -109,8 +110,6 @@
           <input type="date" id="input-fecha" class="select-field" />
         </div>
       </div>
-
-      <div class="categorias-rapidas" id="cats-rapidas"></div>
 
       <button id="btn-guardar" class="btn-primary">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>

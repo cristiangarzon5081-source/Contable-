@@ -526,8 +526,38 @@ main#view-container {
 .text-yellow { color: var(--yellow); }
 .text-accent { color: var(--accent2); }
 
-/* Separador de sección */
-.section-sep { height: 8px; }
+/* Indicador de categoría detectada automáticamente */
+.desc-field-wrap { position: relative; margin-bottom: 12px; }
+.desc-field-wrap .input-desc { margin-bottom: 0; }
+.cat-detectada {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  font-size: 13px; color: var(--accent2);
+  transition: all 0.25s;
+}
+.cat-detectada.visible { display: flex; }
+.cat-detectada-emoji { font-size: 18px; }
+.cat-detectada-label { flex: 1; }
+.cat-detectada-label strong { color: var(--text); }
+.cat-detectada.otros {
+  background: rgba(100,116,139,0.1);
+  border-color: rgba(100,116,139,0.2);
+  color: var(--text3);
+}
+
+/* Grupo de fecha en historial */
+.grupo-label-fecha {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+  letter-spacing: 0.3px;
+  padding: 10px 16px 5px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.grupo-label-fecha .fecha-texto { color: var(--text); font-size: 13px; font-weight: 600; }
+.grupo-label-fecha .fecha-total { font-size: 13px; font-weight: 700; }
 
 /* Scroll snap en listas largas */
 .scroll-list { }

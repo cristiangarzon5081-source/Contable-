@@ -80,17 +80,17 @@ const HistorialView = (() => {
       <div class="card card-sm" style="margin:0 16px 12px; display:flex; gap:12px; align-items:center;">
         <div style="flex:1; text-align:center;">
           <div style="font-size:11px;color:var(--text3)">Ingresos</div>
-          <div style="font-size:15px;font-weight:700;color:var(--green)">${Parser.formatCOP(totalIngresos, true)}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--green)">${Parser.formatCOP(totalIngresos)}</div>
         </div>
         <div style="width:1px;height:30px;background:var(--border)"></div>
         <div style="flex:1; text-align:center;">
           <div style="font-size:11px;color:var(--text3)">Egresos</div>
-          <div style="font-size:15px;font-weight:700;color:var(--red)">${Parser.formatCOP(totalEgresos, true)}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--red)">${Parser.formatCOP(totalEgresos)}</div>
         </div>
         <div style="width:1px;height:30px;background:var(--border)"></div>
         <div style="flex:1; text-align:center;">
           <div style="font-size:11px;color:var(--text3)">Saldo</div>
-          <div style="font-size:15px;font-weight:700;color:${totalIngresos-totalEgresos>=0?'var(--green)':'var(--red)'}">${Parser.formatCOP(totalIngresos - totalEgresos, true)}</div>
+          <div style="font-size:15px;font-weight:700;color:${totalIngresos-totalEgresos>=0?'var(--green)':'var(--red)'}">${Parser.formatCOP(totalIngresos - totalEgresos)}</div>
         </div>
       </div>
     `;
@@ -100,9 +100,9 @@ const HistorialView = (() => {
       const totalDia = items.reduce((s, m) => s + (m.tipo === 'ingreso' ? m.monto : -m.monto), 0);
       html += `
         <div class="grupo-fecha">
-          <div class="grupo-label" style="display:flex;justify-content:space-between;padding-right:16px;">
-            <span>${Parser.fechaLegible(fecha)}</span>
-            <span style="color:${totalDia>=0?'var(--green)':'var(--red)'}">${totalDia>=0?'+':''}${Parser.formatCOP(totalDia, true)}</span>
+          <div class="grupo-label-fecha">
+            <span class="fecha-texto">${Parser.fechaGrupo(fecha)}</span>
+            <span class="fecha-total" style="color:${totalDia>=0?'var(--green)':'var(--red)'}">${totalDia>=0?'+':''}${Parser.formatCOP(totalDia)}</span>
           </div>
           <div class="card" style="padding:0;overflow:hidden;">
             ${items.map(m => buildMovItem(m)).join('')}
@@ -118,22 +118,23 @@ const HistorialView = (() => {
   function buildMovItem(m) {
     const cat = Parser.CATEGORIAS[m.categoria] || Parser.CATEGORIAS.otros;
     const cuentaLabel = { efectivo: 'Efectivo', tarjeta_debito: 'T. Débito', tarjeta_credito: 'T. Crédito', banco: 'Banco' };
+    const catNombre = m.categoria.charAt(0).toUpperCase() + m.categoria.slice(1);
     return `
       <div class="mov-item" data-id="${m.id}">
         <div class="mov-icon" style="background:${m.tipo === 'ingreso' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}">
           ${cat.emoji}
         </div>
         <div class="mov-info">
-          <div class="mov-desc">${m.descripcion || cat.emoji + ' ' + m.categoria}</div>
-          <div class="mov-meta">${cuentaLabel[m.cuenta] || m.cuenta} · ${m.categoria}</div>
+          <div class="mov-desc">${m.descripcion || catNombre}</div>
+          <div class="mov-meta">${cat.emoji} ${catNombre} · ${cuentaLabel[m.cuenta] || m.cuenta}</div>
         </div>
         <div class="mov-monto ${m.tipo}">${m.tipo === 'ingreso' ? '+' : '-'}${Parser.formatCOP(m.monto)}</div>
       </div>
       <div class="mov-item-detail" id="detail-${m.id}">
         <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">
           ${m.descripcion ? `<strong>${m.descripcion}</strong><br>` : ''}
-          Categoría: ${cat.emoji} ${m.categoria} · Cuenta: ${cuentaLabel[m.cuenta] || m.cuenta}<br>
-          Fecha: ${m.fecha}
+          ${cat.emoji} ${catNombre} · ${cuentaLabel[m.cuenta] || m.cuenta}<br>
+          📅 ${Parser.fechaLegible(m.fecha)}
         </div>
         <div class="detail-actions">
           <button class="btn-detail btn-delete" data-delete="${m.id}">🗑️ Eliminar</button>

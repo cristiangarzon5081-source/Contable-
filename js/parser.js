@@ -3,20 +3,277 @@
  */
 
 const CATEGORIAS = {
-  alimentacion: { emoji: '🍽️', palabras: ['almuerzo','comida','restaurante','desayuno','cena','hambre','tinto','café','pizza','hamburguesa','pollo','arroz','mercado','supermercado','tienda','frutas','verduras','panadería','pan','lunch','sushi','tacos','rappi','domicilio'] },
-  transporte: { emoji: '🚗', palabras: ['taxi','uber','bus','metro','gasolina','combustible','parqueadero','parking','moto','transporte','pasaje','tiquete','peaje','recarga','sitp','buseta','colectivo','didi','beat','InDrive'] },
-  salud: { emoji: '🏥', palabras: ['médico','doctor','farmacia','droga','medicina','medicamento','clínica','hospital','cita','examen','laboratorio','odontólogo','dentista','optómetra','gafas','lentes','cirugía'] },
-  entretenimiento: { emoji: '🎬', palabras: ['netflix','spotify','amazon','disney','cine','película','concierto','evento','salida','bar','discoteca','rumba','fiesta','videojuego','juego','steam','xbox','playstation'] },
-  servicios: { emoji: '💡', palabras: ['agua','luz','energía','gas','internet','wifi','telefono','celular','plan','arriendo','renta','administración','cable','tv','streaming','suscripción'] },
-  educacion: { emoji: '📚', palabras: ['colegio','universidad','curso','clase','libro','matrícula','pensión','tutoría','capacitación','seminario','educación','estudio'] },
-  ropa: { emoji: '👕', palabras: ['ropa','zapatos','camisa','pantalón','vestido','tenis','zapatillas','calzado','chaqueta','abrigo','accesorios','moda','zara','h&m','adidas','nike'] },
-  tecnologia: { emoji: '💻', palabras: ['celular','computador','laptop','tablet','auriculares','cargador','cable','tecnología','apple','samsung','huawei','accesorios'] },
-  hogar: { emoji: '🏠', palabras: ['mercado','arriendo','administración','hogar','casa','mueble','electrodoméstico','decoración','reparación','ferretería','pintura','llave','fontanero','electricista'] },
-  salario: { emoji: '💼', palabras: ['salario','sueldo','nómina','pago','quincena','jornal','honorarios','freelance','proyecto','trabajo','empleo'] },
-  ventas: { emoji: '🛍️', palabras: ['venta','vendí','cobré','cliente','servicio','negocio','emprendimiento'] },
-  transferencia: { emoji: '🔄', palabras: ['transferencia','nequi','daviplata','bancolombia','bbva','transferencia','envío','recibí'] },
-  mascotas: { emoji: '🐾', palabras: ['perro','gato','mascota','veterinario','concentrado','alimento','collar','correa','veterinaria'] },
-  belleza: { emoji: '💅', palabras: ['peluquería','barbería','uñas','manicure','pedicure','corte','estética','spa','masaje','belleza','maquillaje','crema'] },
+  alimentacion: {
+    emoji: '🍽️',
+    palabras: [
+      // Comidas genéricas
+      'almuerzo','comida','restaurante','desayuno','cena','merienda','onces','tinto','cafe','cafeteria',
+      'pizza','hamburguesa','hamburgesa','hotdog','perro','pollo','arroz','pasta','sopa','sancocho',
+      'bandeja','arepas','empanadas','tamales','patacon','mondongo','changua','caldo','frijoles',
+      // Frutas y verduras
+      'frutas','verduras','legumbres','hortalizas','ensalada',
+      // Supermercados y tiendas
+      'mercado','supermercado','tienda','minimercado','galeria','plaza de mercado','exito','carulla',
+      'jumbo','olimpica','d1','ara','justo y bueno','metro','makro','surtifamiliar',
+      // Domicilios y delivery
+      'rappi','domicilio','pedido','ifood','uber eats','dominos','pizza hut',
+      // Snacks y bebidas
+      'snack','dulces','chocolate','galletas','jugos','bebidas','gaseosa','agua','cerveza','aguardiente',
+      'ron','vino','licor','trago','helado','postres','panaderia','pan','tostadas','croissant',
+      // Restaurantes de cadena
+      'mcdonalds','burger king','kentucky','kfc','subway','crepes','wok','frisby','presto',
+      'el corral','popsy','panda express','sushi','tacos','burritos','mexcal','taquerıa',
+      // Verbos comunes
+      'comi','desayune','almhorce','cene','tome','bebi','compre comida','gaste en comida',
+      'pedi domicilio','pedı domicilio','lunch','brunch'
+    ]
+  },
+  transporte: {
+    emoji: '🚗',
+    palabras: [
+      // Servicios de transporte
+      'taxi','uber','didi','beat','indriver','cabify','picap','liftit','rappi moto',
+      'bus','buseta','colectivo','sitp','metro','transmilenio','mio','metroplus','metro de medellin',
+      'metro cable','teleférico','tren','tren de la sabana',
+      // Combustible y vehículo
+      'gasolina','combustible','diesel','acpm','full','galones','litros de gasolina',
+      'aceite','lubricante','llantas','neumaticos','taller','mecanico','lavadero','lavada',
+      'parqueadero','parking','parquear','soat','tecnomecanica','seguro carro','seguro moto',
+      // Pasajes y peajes
+      'pasaje','tiquete','peaje','recarga','tarjeta tullave','mio card','civica',
+      // Moto y bicicleta
+      'moto','motos','bicicleta','cicla','patineta','scooter',
+      // Verbos
+      'fui en taxi','tome uber','cogi bus','llene gasolina','pague parqueadero'
+    ]
+  },
+  salud: {
+    emoji: '🏥',
+    palabras: [
+      // Profesionales
+      'medico','doctor','doctora','medica','cita medica','consulta','especialista',
+      'odontologo','dentista','odontologa','ortodoncia','brackets','carillas',
+      'optometra','optologo','gafas','lentes','anteojos','visita medica',
+      'psicologo','psiquiatra','terapia','terapeuta','nutricionista','nutriologo',
+      'fisioterapeuta','fisioterapia','rehabilitacion',
+      // Establecimientos
+      'farmacia','drogueria','drogas la rebaja','colsubsidio drogueria','sanar','la economia',
+      'clinica','hospital','eps','ips','urgencias','emergencia','sala de espera',
+      'laboratorio','examen','analisis','radiografia','ecografia','endoscopia',
+      'cirugia','operacion','procedimiento',
+      // Medicamentos
+      'medicina','medicamento','pastillas','ampolletas','jarabe','antibiotico',
+      'vitaminas','suplemento','proteina','crema','pomada','gotas','inhalador',
+      // Verbos
+      'fui al medico','fui al dentista','compre medicamento','saque cita','pague eps'
+    ]
+  },
+  entretenimiento: {
+    emoji: '🎬',
+    palabras: [
+      // Streaming
+      'netflix','spotify','amazon prime','disney plus','disney+','hbo','hbo max','max',
+      'apple tv','paramount','crunchyroll','youtube premium','tidal','deezer',
+      // Cine y espectáculos
+      'cine','cinemark','cinemagic','royal films','cine colombia','pelicula','funcion',
+      'concierto','show','espectaculo','teatro','obra','musical','ballet',
+      // Salidas
+      'bar','discoteca','rumba','fiesta','club','antro','taberna','cantina',
+      'bolos','bowling','karting','kartodromo','escape room','laser tag',
+      'parque','parque de diversiones','salitre magico','mundo aventura',
+      // Videojuegos
+      'videojuego','juego','steam','xbox','playstation','nintendo','switch','ps5','ps4',
+      'game pass','psn','playstation store','app store','google play',
+      // Deportes como espectador
+      'entrada partido','tiquete partido','estadio','palco',
+      // Otros
+      'evento','concierto','festival','feria','exposicion',
+      'karaoke','billar','tejo','rana'
+    ]
+  },
+  servicios: {
+    emoji: '💡',
+    palabras: [
+      // Servicios públicos
+      'agua','luz','energia','gas natural','gas domiciliario','acueducto','alcantarillado',
+      'epm','codensa','gases de occidente','naturgas','surtigas','triple a','emcali',
+      'recibo','factura','servicio publico',
+      // Telecomunicaciones
+      'internet','wifi','plan de datos','datos','claro','movistar','tigo','wom','virgin mobile',
+      'plan celular','plan movil','recargar','recarga celular','minutos',
+      'cable','television','tv cable','directv','claro tv','movistar tv',
+      // Vivienda
+      'arriendo','renta','alquiler','canon','administracion','cuota de administracion',
+      // Seguros y financieros
+      'seguro','poliza','prima','seguro de vida','seguro hogar',
+      // Suscripciones y otros
+      'suscripcion','mensualidad','membresia','cuota mensual',
+      // Verbos
+      'pague arriendo','pague servicios','pague el recibo','recargue el celular'
+    ]
+  },
+  educacion: {
+    emoji: '📚',
+    palabras: [
+      // Establecimientos
+      'colegio','universidad','instituto','academıa','escuela','jardin','preescolar',
+      'uniandes','javeriana','nacional','sena','politecnico','compensar','cafam',
+      // Pagos educativos
+      'matricula','pension','mensualidad colegio','cuota educacion','pension escolar',
+      'tutoría','tutoria','clases particulares','refuerzo',
+      // Material
+      'libro','libros','cuaderno','lapices','utiles','utiles escolares','mochila',
+      'uniform','uniforme','ropa escolar','zapatos colegiales',
+      // Cursos y capacitación
+      'curso','capacitacion','seminario','diplomado','taller','conferencia',
+      'udemy','coursera','platzi','domestika','linkedin learning',
+      // Verbos
+      'pague pension','pague matricula','compre libros','pague curso'
+    ]
+  },
+  ropa: {
+    emoji: '👕',
+    palabras: [
+      // Prendas
+      'ropa','camisa','camiseta','blusa','camiseta','pantalon','jean','jeans','short',
+      'vestido','falda','medias','calcetines','ropa interior','boxer','brasier','tanga',
+      'chaqueta','abrigo','saco','buzo','sudadera','hoodie','pijama','bata',
+      'tenis','zapatillas','zapatos','botas','sandalias','chanclas','tacones',
+      'cinturon','bolso','cartera','mochila de moda','gorra','sombrero',
+      // Tiendas y marcas
+      'zara','h&m','bershka','pull and bear','stradivarius','mango','forever 21',
+      'adidas','nike','puma','reebok','new balance','vans','converse',
+      'temu','shein','amazon ropa','falabella','ripley','alkosto ropa',
+      'gef','pronto','naf naf','chevignon','totto','colore','venus','patprimo',
+      // Verbos
+      'compre ropa','compre camiseta','compre zapatos','compre jean','compre tenis'
+    ]
+  },
+  tecnologia: {
+    emoji: '💻',
+    palabras: [
+      // Dispositivos
+      'celular','telefono','smartphone','iphone','android','samsung galaxy','huawei',
+      'computador','computadora','laptop','portatil','macbook','imac','mac mini',
+      'tablet','ipad','kindle','e-reader',
+      'smartwatch','reloj inteligente','apple watch','galaxy watch',
+      'auriculares','audifonos','earbuds','airpods','buds',
+      'parlante','bocina','altavoz','sonos','jbl','bose',
+      'camara','gopro','dron','drone',
+      // Accesorios y repuestos
+      'cargador','cable usb','cable tipo c','power bank','bateria portatil',
+      'funda','case','protector pantalla','vidrio templado',
+      'mouse','teclado','monitor','pantalla','disco duro','ssd','ram','memoria',
+      // Tiendas y marcas
+      'apple','samsung','huawei','xiaomi','oppo','motorola','lg','sony',
+      'alkosto','ktronix','mac center','iShop','claro tienda',
+      // Verbos
+      'compre celular','compre computador','compre auriculares','repare celular'
+    ]
+  },
+  hogar: {
+    emoji: '🏠',
+    palabras: [
+      // Muebles y decoración
+      'mueble','sofa','cama','colchon','mesa','silla','escritorio','closet','armario',
+      'cortinas','alfombra','lampara','cuadro','decoracion','adorno',
+      // Electrodomésticos
+      'nevera','refrigerador','lavadora','secadora','estufa','horno','microondas',
+      'licuadora','batidora','cafetera','tostadora','aspiradora','plancha',
+      'aire acondicionado','ventilador','calentador',
+      // Reparación y mantenimiento
+      'plomero','plomeria','fontanero','fontaneria','electricista','albanil',
+      'pintura','pintar','pinturas','cemento','materiales','ferreteria',
+      'reparacion','arreglo','mantenimiento','instalacion',
+      // Limpieza
+      'jabón','detergente','limpieza','escoba','trapero','bolsas de basura',
+      'papel higienico','toallas','servilletas','desinfectante',
+      // Cocina y menaje
+      'olla','sarten','vajilla','cubiertos','vasos','copas',
+      // Tiendas
+      'homecenter','easy','muebles y muebles','falabella hogar','alkosto hogar',
+      // Verbos
+      'compre para la casa','arregle la casa','pague plomero','compre mueble'
+    ]
+  },
+  mascotas: {
+    emoji: '🐾',
+    palabras: [
+      'perro','gato','mascota','hamster','conejo','pajaro','loro','pez','acuario',
+      'veterinario','veterinaria','vet','clinica veterinaria','consulta veterinaria',
+      'vacuna perro','vacuna gato','desparasitacion','bano canino','peluqueria canina',
+      'concentrado','alimento para mascota','croquetas','pedigree','royal canin',
+      'collar','correa','cama mascota','juguete mascota','jaula','transportador',
+      'arena gato','bandeja sanitaria',
+      // Verbos
+      'fui al veterinario','compre concentrado','bane al perro','vacune al gato'
+    ]
+  },
+  belleza: {
+    emoji: '💅',
+    palabras: [
+      // Establecimientos
+      'peluqueria','barberia','salon de belleza','estetica','spa','centro estetico',
+      // Servicios
+      'corte de cabello','corte','tinte','coloracion','decoloracion','permanente',
+      'manicure','pedicure','unas','acrilicas','gel','semipermanente','nail art',
+      'depilacion','cera','laser','facial','limpieza facial','masaje','bronceado',
+      'cejas','micropigmentacion','microblading','botox','relleno',
+      // Productos
+      'maquillaje','base','labial','mascara','sombras','rubor','iluminador',
+      'shampoo','acondicionador','tinte de cabello','serum','crema',
+      'perfume','fragancia','colonia',
+      // Marcas
+      'loreal','mac','nyx','maybelline','revlon','sephora','cyzone','esika','yanbal',
+      // Verbos
+      'fui a la peluqueria','me tine el cabello','me hice las unas','me corte el cabello'
+    ]
+  },
+  salario: {
+    emoji: '💼',
+    palabras: [
+      // Tipos de ingreso laboral
+      'salario','sueldo','nomina','quincena','quincena de trabajo','pago mensual',
+      'jornal','honorarios','fee','pago de honorarios',
+      'freelance','trabajo independiente','contrato','prestacion de servicios',
+      // Verbos de cobro
+      'me pagaron','recibi pago','me depositaron','cobre mi sueldo','cobre mi salario',
+      'me consignaron','llego mi sueldo','llego mi nomina','me pago el jefe',
+      'me pago el cliente','cobre proyecto','cobre trabajo',
+      // Contextos laborales
+      'trabajo','empleo','empresa','jefe','patron','empleador','cliente de trabajo',
+      'arenera','constructora','fabrica','oficina','taller de trabajo',
+      'pago de mi trabajo','pago del trabajo','me cancelaron','me liquidaron',
+      // Prima y bonificaciones
+      'prima','bonificacion','bono','comision','pago comision','auxilio de transporte',
+      'cesantias','intereses cesantias','vacaciones pagadas','liquidacion'
+    ]
+  },
+  ventas: {
+    emoji: '🛍️',
+    palabras: [
+      'venta','vendi','vendi un','cobre venta','ingreso por venta',
+      'negocio','emprendimiento','tienda propia','negocio propio',
+      'mercancia','producto vendido','servicio cobrado',
+      'cliente pago','cliente me pago','me pago un cliente',
+      'factura cobrada','cobro de factura',
+      'rebusque','rebusqué','informal','dia a dia'
+    ]
+  },
+  transferencia: {
+    emoji: '🔄',
+    palabras: [
+      // Apps de pago
+      'nequi','daviplata','transfiya','a la mano','rappipay',
+      // Bancos
+      'bancolombia','davivienda','bbva','banco de bogota','banco popular',
+      'colpatria','scotiabank','citi','itau','ban100','lulo bank','nubank',
+      // Acciones
+      'transferencia','transferi','transferencia bancaria','consignacion','deposito',
+      'envie dinero','me enviaron','recibí transferencia','recibi transferencia',
+      'me mandaron','me giraron','giro','remesa','remesa del exterior'
+    ]
+  },
   otros: { emoji: '📦', palabras: [] }
 };
 
@@ -39,14 +296,36 @@ const Parser = (() => {
     return '$' + Math.round(num).toLocaleString('es-CO');
   }
 
-  // Categorizar automáticamente por descripción
+  // Normalizar texto: quitar tildes, ñ → n, minúsculas
+  function normalizar(texto) {
+    return texto
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quitar tildes
+      .replace(/ñ/g, 'n')
+      .replace(/[^a-z0-9\s]/g, ' ')   // quitar caracteres especiales
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Categorizar automáticamente por descripción — sin necesidad de elegir categoría
   function categorizarAuto(descripcion) {
     if (!descripcion) return 'otros';
-    const desc = descripcion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const desc = normalizar(descripcion);
+
+    // Buscar coincidencia por palabra clave (prioridad: primero que coincida gana)
     for (const [cat, data] of Object.entries(CATEGORIAS)) {
+      if (cat === 'otros') continue;
       for (const palabra of data.palabras) {
-        const pal = palabra.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (desc.includes(pal)) return cat;
+        const pal = normalizar(palabra);
+        // Coincidencia de subcadena completa (evita falsos positivos en palabras cortas)
+        if (pal.length <= 3) {
+          // Para palabras muy cortas, exigir que sea una palabra completa
+          const regex = new RegExp(`\\b${pal}\\b`);
+          if (regex.test(desc)) return cat;
+        } else {
+          if (desc.includes(pal)) return cat;
+        }
       }
     }
     return 'otros';
@@ -132,14 +411,39 @@ const Parser = (() => {
     return meses[num] || '';
   }
 
-  // Formatear fecha legible
+  // Formatear fecha legible con día de semana
   function fechaLegible(isoDate) {
     const hoy = new Date().toISOString().split('T')[0];
     const ayer = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    if (isoDate === hoy) return 'Hoy';
-    if (isoDate === ayer) return 'Ayer';
-    const [y, m, d] = isoDate.split('-');
-    return `${parseInt(d)} ${nombreMes(parseInt(m) - 1)}`;
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const nombreMeses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    // Usar mediodía para evitar problema de zona horaria
+    const fecha = new Date(y, m - 1, d, 12, 0, 0);
+    const diaSemana = diasSemana[fecha.getDay()];
+    const diaSemanaCorto = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+
+    if (isoDate === hoy) return `Hoy, ${d} de ${nombreMeses[m - 1]}`;
+    if (isoDate === ayer) return `Ayer, ${d} de ${nombreMeses[m - 1]}`;
+    return `${diaSemanaCorto}, ${d} de ${nombreMeses[m - 1]} de ${y}`;
+  }
+
+  // Fecha corta para encabezados de grupo (sin año si es el año actual)
+  function fechaGrupo(isoDate) {
+    const hoy = new Date().toISOString().split('T')[0];
+    const ayer = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const nombreMeses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const fecha = new Date(y, m - 1, d, 12, 0, 0);
+    const diaSemana = diasSemana[fecha.getDay()];
+    const diaCapital = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+    const añoActual = new Date().getFullYear();
+
+    if (isoDate === hoy) return `Hoy · ${diaCapital} ${d} de ${nombreMeses[m - 1]}`;
+    if (isoDate === ayer) return `Ayer · ${diaCapital} ${d} de ${nombreMeses[m - 1]}`;
+    if (y === añoActual) return `${diaCapital} ${d} de ${nombreMeses[m - 1]}`;
+    return `${diaCapital} ${d} de ${nombreMeses[m - 1]} de ${y}`;
   }
 
   // Calcular días entre dos fechas
@@ -201,8 +505,8 @@ const Parser = (() => {
   }
 
   return {
-    parsearMonto, formatCOP, categorizarAuto, parsearTextoLibre,
-    getRangoFecha, nombreMes, nombreMesLargo, fechaLegible, diasEntre,
+    parsearMonto, formatCOP, normalizar, categorizarAuto, parsearTextoLibre,
+    getRangoFecha, nombreMes, nombreMesLargo, fechaLegible, fechaGrupo, diasEntre,
     calcularPrestamo, proyectarMes, CATEGORIAS
   };
 })();
