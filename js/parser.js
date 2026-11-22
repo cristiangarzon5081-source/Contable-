@@ -452,7 +452,6 @@ const Parser = (() => {
   }
 
   // Detecta si una descripción corresponde a un lugar de compra mixta
-  // (supermercado, tienda grande donde se compran varias categorías)
   const LUGARES_MIXTOS = [
     'exito','carulla','jumbo','olimpica','metro','makro','surtifamiliar',
     'supermercado','mercado','plaza de mercado','galeria','tienda mixta',
@@ -464,9 +463,69 @@ const Parser = (() => {
     return LUGARES_MIXTOS.some(lugar => desc.includes(normalizar(lugar)));
   }
 
+  // ── ANÁLISIS DE MÚLTIPLES PRODUCTOS ──────────────────────────
+  // Separa "compré 3 mangos y 1 camiseta" en items individuales
+  // y detecta la categoría de cada uno automáticamente.
+
+  // Separadores que indican múltiples productos en una oración
+  const _reSep = /\s*(?:,\s*|\s+y\s+|\s+e\s+|\s+mas\s+|\s+más\s+|\s+también\s+|\s+tambien\s+|\s+además\s+|\s+ademas\s+|\s*\+\s*|\s*;\s*)\s*/i;
+
+  /**
+   * Dado un texto ("3 mangos y 1 camiseta"), devuelve array de:
+   * { texto: string, categoria: string, emoji: string, nombre: string }
+   * Siempre devuelve al menos 1 elemento.
+   */
+  function analizarProductos(descripcion) {
+    if (!descripcion) return [];
+    const cats = getCategoriasMerged();
+
+    // Quitar verbo inicial: "compré", "gasté en", "fui a comprar", etc.
+    let textoLimpio = descripcion
+      .replace(/^(compré?|gasté?|pagué?|compre en|fui a comprar|compramos|compramos)\s+/i, '')
+      .trim();
+
+    // Dividir por separadores
+    const partes = textoLimpio.split(_reSep).map(p => p.trim()).filter(Boolean);
+
+    // Para cada parte, limpiar cantidad inicial y detectar categoría
+    return partes.map(parte => {
+      // Quitar cantidad: "3 mangos" → "mangos", "un taxi" → "taxi"
+      const sinCantidad = parte
+        .replace(/^\d+\s+/, '')
+        .replace(/^(un|una|unos|unas|el|la|los|las)\s+/i, '')
+        .trim();
+
+      const cat = categorizarAuto(sinCantidad) !== 'otros'
+        ? categorizarAuto(sinCantidad)
+        : categorizarAuto(parte);
+
+      const info = cats[cat] || cats.otros;
+      return {
+        texto: parte,           // texto original del fragmento ("3 mangos")
+        sinCantidad,            // texto limpio ("mangos")
+        categoria: cat,
+        emoji: info.emoji,
+        nombre: info.nombre
+      };
+    });
+  }
+
+  /**
+   * Devuelve true si la descripción contiene múltiples productos
+   * de categorías distintas.
+   */
+  function esCompraMultiple(descripcion) {
+    if (!descripcion || descripcion.trim().split(/\s+/).length < 3) return false;
+    const productos = analizarProductos(descripcion);
+    if (productos.length <= 1) return false;
+    const categoriasUnicas = new Set(productos.map(p => p.categoria));
+    return categoriasUnicas.size > 1;
+  }
+
   return {
     cargarCatsPersonalizadas, invalidarCache, getCategoriasMerged,
-    parsearMonto, formatCOP, normalizar, categorizarAuto, esLugarMixto,
+    parsearMonto, formatCOP, normalizar, categorizarAuto,
+    esLugarMixto, analizarProductos, esCompraMultiple,
     getRangoFecha, nombreMes, nombreMesLargo, fechaLegible, fechaGrupo,
     diasEntre, calcularPrestamo, proyectarMes, slugify,
     CATEGORIAS, LUGARES_MIXTOS

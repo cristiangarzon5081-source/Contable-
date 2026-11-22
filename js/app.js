@@ -1,12 +1,14 @@
 /**
  * CONTABLE - App principal
- * Orquesta la navegación, modales y lógica global
  */
 
 const App = (() => {
   let vistaActual = 'dashboard';
   let tipoMovimiento = 'egreso';
   let tipoPrestamo = 'debo';
+  // Estado del panel multi-producto
+  let _productosDetectados = []; // Array de { texto, categoria, emoji, nombre, monto }
+  let _modoMulti = false;
 
   const VIEWS = {
     dashboard: DashboardView,
@@ -20,7 +22,6 @@ const App = (() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
-
     setTimeout(() => {
       document.getElementById('splash').style.opacity = '0';
       setTimeout(() => {
@@ -36,7 +37,6 @@ const App = (() => {
     bindModalAbono();
     bindModalCategoria();
     bindFechaDefault();
-    // Cargar categorías personalizadas al inicio para que el categorizador las use
     Parser.cargarCatsPersonalizadas().catch(() => {});
   }
 
@@ -53,13 +53,9 @@ const App = (() => {
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => navegarA(btn.dataset.view));
     });
-
     document.getElementById('btn-add').addEventListener('click', () => {
-      if (vistaActual === 'prestamos') {
-        abrirModalPrestamo();
-      } else {
-        abrirModalEntrada();
-      }
+      if (vistaActual === 'prestamos') abrirModalPrestamo();
+      else abrirModalEntrada();
     });
   }
 
@@ -79,7 +75,7 @@ const App = (() => {
     document.getElementById('input-fecha').value = new Date().toISOString().split('T')[0];
     document.getElementById('select-cuenta').value = 'efectivo';
     ocultarCatDetectada();
-    ocultarDesglose();
+    resetMulti();
     setTipoMovimiento('egreso');
     modal.classList.remove('hidden');
     setTimeout(() => document.getElementById('input-monto').focus(), 300);
@@ -87,106 +83,7 @@ const App = (() => {
 
   function cerrarModalEntrada() {
     document.getElementById('modal-entrada').classList.add('hidden');
-    ocultarDesglose();
-  }
-
-  // ── DESGLOSE (compras mixtas) ─────────────────────────────────
-  function mostrarDesglose() {
-    const wrap = document.getElementById('desglose-wrap');
-    wrap.classList.remove('hidden');
-  }
-
-  function ocultarDesglose() {
-    const wrap = document.getElementById('desglose-wrap');
-    if (wrap) wrap.classList.add('hidden');
-    const items = document.getElementById('desglose-items');
-    if (items) items.classList.add('hidden');
-    const btn = document.getElementById('btn-desglose-toggle');
-    if (btn) { btn.textContent = 'Sí, desglosar'; btn.classList.remove('activo'); }
-    const lista = document.getElementById('desglose-lista');
-    if (lista) lista.innerHTML = '';
-    const resumen = document.getElementById('desglose-resumen');
-    if (resumen) resumen.innerHTML = '';
-  }
-
-  function buildDesgloseItem(cats) {
-    const div = document.createElement('div');
-    div.className = 'desglose-item';
-    const catOpts = cats.map(([slug, c]) =>
-      `<option value="${slug}">${c.emoji} ${c.nombre}</option>`
-    ).join('');
-    div.innerHTML = `
-      <select class="desglose-item-cat">${catOpts}</select>
-      <input type="text" class="desglose-item-monto" placeholder="$0" inputmode="numeric" />
-      <button class="desglose-item-del" title="Quitar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    `;
-    // Formato monto
-    div.querySelector('.desglose-item-monto').addEventListener('input', e => {
-      let val = e.target.value.replace(/[^0-9]/g, '');
-      if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
-      actualizarResumenDesglose();
-    });
-    div.querySelector('.desglose-item-del').addEventListener('click', () => {
-      div.remove();
-      actualizarResumenDesglose();
-    });
-    return div;
-  }
-
-  function actualizarResumenDesglose() {
-    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
-    const montoTotal = parseFloat(montoRaw) || 0;
-    const items = document.querySelectorAll('.desglose-item');
-    let suma = 0;
-    items.forEach(item => {
-      const v = item.querySelector('.desglose-item-monto').value.replace(/\./g, '').replace(/,/g, '');
-      suma += parseFloat(v) || 0;
-    });
-    const resumen = document.getElementById('desglose-resumen');
-    if (!resumen || montoTotal === 0) return;
-    const diferencia = montoTotal - suma;
-    const clase = Math.abs(diferencia) < 1 ? 'desglose-ok' : diferencia > 0 ? 'desglose-warn' : 'desglose-err';
-    const msg = Math.abs(diferencia) < 1
-      ? '✅ Total cuadra'
-      : diferencia > 0
-        ? `Faltan $${Math.round(diferencia).toLocaleString('es-CO')} por asignar`
-        : `Excedes el total por $${Math.round(Math.abs(diferencia)).toLocaleString('es-CO')}`;
-    resumen.innerHTML = `<span class="${clase}">${msg}</span>`;
-  }
-
-  function bindDesglose() {
-    const btnToggle = document.getElementById('btn-desglose-toggle');
-    const itemsWrap = document.getElementById('desglose-items');
-    const lista = document.getElementById('desglose-lista');
-    const btnAdd = document.getElementById('btn-desglose-add');
-    if (!btnToggle) return;
-
-    btnToggle.addEventListener('click', () => {
-      const abierto = !itemsWrap.classList.contains('hidden');
-      if (abierto) {
-        itemsWrap.classList.add('hidden');
-        btnToggle.textContent = 'Sí, desglosar';
-        btnToggle.classList.remove('activo');
-        lista.innerHTML = '';
-      } else {
-        itemsWrap.classList.remove('hidden');
-        btnToggle.textContent = 'Cancelar';
-        btnToggle.classList.add('activo');
-        // Agregar dos ítems iniciales
-        const cats = Object.entries(Parser.getCategoriasMerged()).filter(([s]) => s !== 'otros');
-        lista.appendChild(buildDesgloseItem(cats));
-        lista.appendChild(buildDesgloseItem(cats));
-      }
-    });
-
-    btnAdd.addEventListener('click', () => {
-      const cats = Object.entries(Parser.getCategoriasMerged()).filter(([s]) => s !== 'otros');
-      lista.appendChild(buildDesgloseItem(cats));
-    });
+    resetMulti();
   }
 
   function setTipoMovimiento(tipo) {
@@ -196,19 +93,16 @@ const App = (() => {
     });
   }
 
-  // Muestra la categoría detectada debajo del campo de descripción
+  // ── INDICADOR DE CATEGORÍA ÚNICA ─────────────────────────────
   function mostrarCatDetectada(cat) {
     const el = document.getElementById('cat-detectada');
     if (!el) return;
-    const info = Parser.CATEGORIAS[cat] || Parser.CATEGORIAS.otros;
-    const nombreCat = cat.charAt(0).toUpperCase() + cat.slice(1);
-
+    const info = (Parser.getCategoriasMerged()[cat] || Parser.CATEGORIAS.otros);
+    const nombreCat = info.nombre || (cat.charAt(0).toUpperCase() + cat.slice(1));
     el.className = `cat-detectada ${cat === 'otros' ? 'otros' : ''}`;
     el.innerHTML = `
       <span class="cat-detectada-emoji">${info.emoji}</span>
-      <span class="cat-detectada-label">
-        Categoría detectada: <strong>${nombreCat}</strong>
-      </span>
+      <span class="cat-detectada-label">Categoría detectada: <strong>${nombreCat}</strong></span>
     `;
     el.classList.remove('hidden');
     document.getElementById('input-descripcion').style.borderRadius = '12px 12px 0 0';
@@ -221,6 +115,125 @@ const App = (() => {
     if (inp) inp.style.borderRadius = '';
   }
 
+  // ── PANEL MULTI-PRODUCTO ──────────────────────────────────────
+  /**
+   * Cuando el usuario escribe algo con múltiples productos de distintas
+   * categorías ("3 mangos y 1 camiseta"), aparece este panel.
+   * Muestra cada producto con su categoría detectada y un campo de monto.
+   * El usuario solo pone los montos — la categoría ya está asignada.
+   */
+  function resetMulti() {
+    _modoMulti = false;
+    _productosDetectados = [];
+    const panel = document.getElementById('multi-panel');
+    if (panel) panel.classList.add('hidden');
+    // Restaurar label del botón guardar
+    const btnGuardar = document.getElementById('btn-guardar');
+    if (btnGuardar) btnGuardar.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Guardar
+    `;
+  }
+
+  function activarModoMulti(productos) {
+    _modoMulti = true;
+    _productosDetectados = productos.map(p => ({ ...p, monto: 0 }));
+
+    const panel = document.getElementById('multi-panel');
+    ocultarCatDetectada(); // Ocultar el indicador de categoría única
+
+    // Construir el panel
+    panel.innerHTML = `
+      <div class="multi-header">
+        <span class="multi-titulo">📦 Detecté ${productos.length} productos — pon el valor de cada uno</span>
+      </div>
+      <div class="multi-lista" id="multi-lista">
+        ${productos.map((p, i) => `
+          <div class="multi-item" data-index="${i}">
+            <div class="multi-item-left">
+              <span class="multi-item-emoji">${p.emoji}</span>
+              <div class="multi-item-info">
+                <div class="multi-item-texto">${p.texto}</div>
+                <div class="multi-item-cat">${p.nombre}</div>
+              </div>
+            </div>
+            <div class="multi-item-monto-wrap">
+              <span class="multi-currency">$</span>
+              <input
+                type="text"
+                class="multi-monto-input"
+                data-index="${i}"
+                placeholder="0"
+                inputmode="numeric"
+                autocomplete="off"
+              />
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="multi-footer" id="multi-footer">
+        <span class="multi-total-label">Total asignado:</span>
+        <span class="multi-total-val" id="multi-total-val">$0</span>
+      </div>
+    `;
+
+    panel.classList.remove('hidden');
+
+    // Bindings de los inputs de monto
+    panel.querySelectorAll('.multi-monto-input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        let val = e.target.value.replace(/[^0-9]/g, '');
+        if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
+        const idx = parseInt(e.target.dataset.index);
+        _productosDetectados[idx].monto = parseInt(val || '0', 10);
+        actualizarTotalMulti();
+      });
+    });
+
+    // Enfocar el primer campo de monto
+    setTimeout(() => {
+      const primer = panel.querySelector('.multi-monto-input');
+      if (primer) primer.focus();
+    }, 100);
+
+    // Cambiar label del botón guardar
+    document.getElementById('btn-guardar').innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Guardar ${productos.length} movimientos
+    `;
+  }
+
+  function actualizarTotalMulti() {
+    const suma = _productosDetectados.reduce((s, p) => s + (p.monto || 0), 0);
+    const el = document.getElementById('multi-total-val');
+    if (!el) return;
+
+    // Comparar con el monto total ingresado arriba
+    const montoRaw = document.getElementById('input-monto').value.replace(/\./g, '').replace(/,/g, '');
+    const montoTotal = parseFloat(montoRaw) || 0;
+
+    el.textContent = Parser.formatCOP(suma);
+    const footer = document.getElementById('multi-footer');
+    if (!footer) return;
+
+    if (montoTotal > 0) {
+      const diff = montoTotal - suma;
+      if (Math.abs(diff) < 1) {
+        footer.className = 'multi-footer ok';
+        footer.innerHTML = `<span>✅ Total cuadra: ${Parser.formatCOP(suma)}</span>`;
+      } else if (diff > 0) {
+        footer.className = 'multi-footer warn';
+        footer.innerHTML = `<span>Faltan <strong>${Parser.formatCOP(diff)}</strong> por asignar (total: ${Parser.formatCOP(montoTotal)})</span>`;
+      } else {
+        footer.className = 'multi-footer err';
+        footer.innerHTML = `<span>⚠️ Excedes por <strong>${Parser.formatCOP(Math.abs(diff))}</strong> (total: ${Parser.formatCOP(montoTotal)})</span>`;
+      }
+    } else {
+      footer.className = 'multi-footer';
+      footer.innerHTML = `<span class="multi-total-label">Total asignado:</span> <span class="multi-total-val">${Parser.formatCOP(suma)}</span>`;
+    }
+  }
+
   function bindModalEntrada() {
     const modal = document.getElementById('modal-entrada');
     modal.querySelector('.modal-backdrop').addEventListener('click', cerrarModalEntrada);
@@ -230,40 +243,42 @@ const App = (() => {
       btn.addEventListener('click', () => setTipoMovimiento(btn.dataset.tipo));
     });
 
-    // Categorización automática en tiempo real mientras escribe
+    // Categorización automática en tiempo real
     const inputDesc = document.getElementById('input-descripcion');
     let catTimeout;
     inputDesc.addEventListener('input', () => {
       clearTimeout(catTimeout);
       const texto = inputDesc.value.trim();
-      if (!texto) { ocultarCatDetectada(); ocultarDesglose(); return; }
+      if (!texto) {
+        ocultarCatDetectada();
+        resetMulti();
+        return;
+      }
       catTimeout = setTimeout(() => {
-        const cat = Parser.categorizarAuto(texto);
-        mostrarCatDetectada(cat);
-        // Detectar si es lugar de compra mixta
-        if (Parser.esLugarMixto(texto)) {
-          mostrarDesglose();
+        // ¿Contiene múltiples productos de distintas categorías?
+        if (Parser.esCompraMultiple(texto)) {
+          const productos = Parser.analizarProductos(texto);
+          activarModoMulti(productos);
         } else {
-          ocultarDesglose();
+          resetMulti();
+          const cat = Parser.categorizarAuto(texto);
+          mostrarCatDetectada(cat);
         }
-      }, 250);
+      }, 350);
     });
 
-    // Formato de monto (puntos de miles automáticos)
+    // Formato de monto
     document.getElementById('input-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
-      if (val) {
-        e.target.value = parseInt(val, 10).toLocaleString('es-CO');
-      }
+      if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
+      if (_modoMulti) actualizarTotalMulti();
     });
 
-    // Enter en descripción guarda
     inputDesc.addEventListener('keydown', e => {
       if (e.key === 'Enter') guardarMovimiento();
     });
 
     document.getElementById('btn-guardar').addEventListener('click', guardarMovimiento);
-    bindDesglose();
   }
 
   async function guardarMovimiento() {
@@ -281,14 +296,13 @@ const App = (() => {
       return;
     }
 
-    // Verificar si hay desglose activo
-    const desgloseActivo = !document.getElementById('desglose-items').classList.contains('hidden');
-    if (desgloseActivo) {
-      await guardarConDesglose(monto, descripcion, cuenta, fecha);
+    // Modo multi-producto
+    if (_modoMulti && _productosDetectados.length > 0) {
+      await guardarMultiProducto(descripcion, cuenta, fecha, monto);
       return;
     }
 
-    // Sin desglose: guardado normal
+    // Modo simple
     const categoria = Parser.categorizarAuto(descripcion) || 'otros';
     try {
       await DB.agregarMovimiento({ tipo: tipoMovimiento, monto, descripcion, categoria, cuenta, fecha });
@@ -299,45 +313,52 @@ const App = (() => {
     }
   }
 
-  async function guardarConDesglose(montoTotal, descripcion, cuenta, fecha) {
-    const items = document.querySelectorAll('.desglose-item');
-    const movimientos = [];
-    let sumaDesglose = 0;
+  async function guardarMultiProducto(descripcion, cuenta, fecha, montoTotal) {
+    // Filtrar solo los que tienen monto > 0
+    const conMonto = _productosDetectados.filter(p => p.monto > 0);
+    const sinMonto = _productosDetectados.filter(p => !p.monto || p.monto <= 0);
 
-    for (const item of items) {
-      const catSlug = item.querySelector('.desglose-item-cat').value;
-      const montoStr = item.querySelector('.desglose-item-monto').value.replace(/\./g, '').replace(/,/g, '');
-      const monto = parseFloat(montoStr);
-      if (!catSlug || !monto || monto <= 0) continue;
-      movimientos.push({ catSlug, monto });
-      sumaDesglose += monto;
-    }
-
-    if (!movimientos.length) {
-      // No completó el desglose — guardar como uno solo
-      const categoria = Parser.categorizarAuto(descripcion) || 'otros';
-      await DB.agregarMovimiento({ tipo: tipoMovimiento, monto: montoTotal, descripcion, categoria, cuenta, fecha });
+    if (!conMonto.length) {
+      // Ningún monto ingresado → guardar como uno solo con categoría del primero
+      const cat = _productosDetectados[0]?.categoria || 'otros';
+      await DB.agregarMovimiento({ tipo: tipoMovimiento, monto: montoTotal, descripcion, categoria: cat, cuenta, fecha });
       cerrarModalEntrada();
       navegarA(vistaActual);
       return;
     }
 
-    // Si la suma no cierra exactamente, agregar la diferencia en la primera categoría
-    const diferencia = montoTotal - sumaDesglose;
-    if (Math.abs(diferencia) > 1) {
-      if (!confirm(`La suma del desglose ($${sumaDesglose.toLocaleString('es-CO')}) no coincide con el total ($${montoTotal.toLocaleString('es-CO')}). ¿Guardar de todas formas?`)) return;
-    }
-
-    // Guardar cada ítem como movimiento separado
-    for (const mov of movimientos) {
+    // Guardar los que tienen monto
+    for (const p of conMonto) {
       await DB.agregarMovimiento({
         tipo: tipoMovimiento,
-        monto: mov.monto,
-        descripcion: `${descripcion} — ${(Parser.getCategoriasMerged()[mov.catSlug]?.nombre || mov.catSlug)}`,
-        categoria: mov.catSlug,
+        monto: p.monto,
+        descripcion: p.texto,
+        categoria: p.categoria,
         cuenta,
         fecha
       });
+    }
+
+    // Si hay productos sin monto y la suma no cierra, guardar la diferencia como "otros"
+    const sumaAsignada = conMonto.reduce((s, p) => s + p.monto, 0);
+    const diferencia = montoTotal - sumaAsignada;
+    if (diferencia > 1 && sinMonto.length > 0) {
+      // Repartir la diferencia en los productos sin monto
+      const montoPorItem = Math.floor(diferencia / sinMonto.length);
+      for (let i = 0; i < sinMonto.length; i++) {
+        const p = sinMonto[i];
+        const m = i === sinMonto.length - 1 ? diferencia - montoPorItem * i : montoPorItem;
+        if (m > 0) {
+          await DB.agregarMovimiento({
+            tipo: tipoMovimiento,
+            monto: m,
+            descripcion: p.texto,
+            categoria: p.categoria,
+            cuenta,
+            fecha
+          });
+        }
+      }
     }
 
     cerrarModalEntrada();
@@ -398,20 +419,16 @@ const App = (() => {
     const interes = parseFloat(document.getElementById('prestamo-interes').value) || 0;
     const cuotas = parseInt(document.getElementById('prestamo-cuotas').value) || 0;
     const preview = document.getElementById('prestamo-preview');
-
     if (!monto || monto <= 0) { preview.classList.add('hidden'); return; }
-
     const calc = Parser.calcularPrestamo(monto, interes, cuotas || null);
     let texto = `💰 Monto: <strong>${Parser.formatCOP(monto)}</strong><br>`;
     texto += interes > 0 ? `📈 Interés: ${interes}% mensual<br>` : `✅ Sin interés<br>`;
-
     if (cuotas > 0 && calc.cuotaMensual) {
       texto += `📅 ${cuotas} cuotas de <strong>${Parser.formatCOP(calc.cuotaMensual)}</strong><br>`;
       texto += calc.totalInteres > 0
         ? `💸 Total a pagar: ${Parser.formatCOP(calc.totalPagar)} (${Parser.formatCOP(calc.totalInteres)} en intereses)`
         : `✅ Total a pagar: ${Parser.formatCOP(calc.totalPagar)}`;
     }
-
     preview.innerHTML = texto;
     preview.classList.remove('hidden');
   }
@@ -425,10 +442,8 @@ const App = (() => {
     const interes = parseFloat(document.getElementById('prestamo-interes').value) || 0;
     const cuotas = parseInt(document.getElementById('prestamo-cuotas').value) || null;
     const nota = document.getElementById('prestamo-nota').value.trim();
-
     if (!monto || monto <= 0) { alert('Ingresa un monto válido'); return; }
     if (!persona) { alert('Ingresa el nombre de la persona o entidad'); return; }
-
     try {
       await DB.agregarPrestamo({
         tipo: tipoPrestamo, persona, montoOriginal: monto,
@@ -445,9 +460,7 @@ const App = (() => {
   // ── MODAL ABONO ───────────────────────────────────────────────
   function bindModalAbono() {
     const modal = document.getElementById('modal-abono');
-    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
-      modal.classList.add('hidden');
-    });
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('abono-monto').addEventListener('input', e => {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val) e.target.value = parseInt(val, 10).toLocaleString('es-CO');
@@ -457,9 +470,7 @@ const App = (() => {
   // ── MODAL CATEGORÍA ───────────────────────────────────────────
   function bindModalCategoria() {
     const modal = document.getElementById('modal-categoria');
-    modal.querySelector('.modal-backdrop').addEventListener('click', () => {
-      modal.classList.add('hidden');
-    });
+    modal.querySelector('.modal-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
   }
 
   // ── UTILS ─────────────────────────────────────────────────────

@@ -683,66 +683,70 @@ textarea.input-desc {
   display: block; font-family: inherit;
 }
 
-/* ── COMPRA MIXTA / DESGLOSE ───────────────────────────────────── */
-.desglose-wrap {
+/* ── PANEL MULTI-PRODUCTO ──────────────────────────────────────── */
+.multi-panel {
   margin-bottom: 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1.5px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.06);
   overflow: hidden;
+  animation: fadeIn 0.25s ease;
 }
-.desglose-wrap.hidden { display: none; }
+.multi-panel.hidden { display: none; }
 
-.desglose-header {
+.multi-header {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(99,102,241,0.15);
+}
+.multi-titulo {
+  font-size: 13px; color: var(--accent2); font-weight: 600;
+}
+
+.multi-lista { padding: 4px 0; }
+
+.multi-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; gap: 10px;
+  border-bottom: 1px solid rgba(99,102,241,0.1);
+}
+.multi-item:last-child { border-bottom: none; }
+
+.multi-item-left {
+  display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
+}
+.multi-item-emoji { font-size: 22px; flex-shrink: 0; }
+.multi-item-info { min-width: 0; }
+.multi-item-texto {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.multi-item-cat {
+  font-size: 12px; color: var(--accent2); margin-top: 1px;
+}
+
+.multi-item-monto-wrap {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--bg3); border-radius: 10px;
+  padding: 6px 10px; flex-shrink: 0;
+}
+.multi-currency { font-size: 14px; color: var(--text2); font-weight: 600; }
+.multi-monto-input {
+  background: transparent; border: none; outline: none;
+  font-size: 15px; font-weight: 700; color: var(--text);
+  width: 90px; text-align: right; font-family: inherit;
+}
+.multi-monto-input::placeholder { color: var(--text3); font-weight: 400; }
+
+.multi-footer {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px;
-  background: rgba(99,102,241,0.1);
-  font-size: 13px; color: var(--accent2); gap: 8px;
+  font-size: 13px; color: var(--text2);
+  background: rgba(0,0,0,0.1);
+  border-top: 1px solid rgba(99,102,241,0.15);
+  gap: 8px;
 }
-.desglose-toggle-btn {
-  padding: 5px 12px; border-radius: 8px;
-  background: var(--accent); border: none; color: white;
-  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
-  transition: opacity 0.2s;
-}
-.desglose-toggle-btn:active { opacity: 0.7; }
-.desglose-toggle-btn.activo { background: var(--bg3); color: var(--text2); }
-
-.desglose-items { padding: 12px 14px 8px; }
-.desglose-items.hidden { display: none; }
-
-.desglose-hint { font-size: 12px; color: var(--text3); margin-bottom: 10px; line-height: 1.4; }
-
-.desglose-item {
-  display: flex; gap: 8px; align-items: center; margin-bottom: 8px;
-}
-.desglose-item-cat {
-  flex: 1; padding: 8px 10px; border-radius: 8px;
-  background: var(--bg3); border: none; color: var(--text); font-size: 14px;
-  outline: none; font-family: inherit;
-}
-.desglose-item-monto {
-  width: 110px; padding: 8px 10px; border-radius: 8px; text-align: right;
-  background: var(--bg3); border: none; color: var(--text); font-size: 14px;
-  outline: none; font-family: inherit;
-}
-.desglose-item-del {
-  width: 32px; height: 32px; border-radius: 8px;
-  background: rgba(239,68,68,0.1); border: none; color: #f87171;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0;
-}
-
-.btn-desglose-add {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: 8px;
-  background: rgba(99,102,241,0.1); border: 1px dashed rgba(99,102,241,0.35);
-  color: var(--accent2); font-size: 13px; cursor: pointer; margin-top: 4px;
-}
-
-.desglose-resumen {
-  margin-top: 10px; padding: 8px 10px; border-radius: 8px;
-  background: var(--bg3); font-size: 13px;
-}
-.desglose-ok { color: var(--green); }
-.desglose-warn { color: var(--yellow); }
-.desglose-err { color: var(--red); }
+.multi-footer.ok { color: var(--green); background: rgba(16,185,129,0.08); }
+.multi-footer.warn { color: var(--yellow); background: rgba(245,158,11,0.08); }
+.multi-footer.err { color: var(--red); background: rgba(239,68,68,0.08); }
+.multi-total-label { color: var(--text3); }
+.multi-total-val { font-weight: 700; }
