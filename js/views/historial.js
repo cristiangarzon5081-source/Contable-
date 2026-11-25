@@ -116,9 +116,10 @@ const HistorialView = (() => {
   }
 
   function buildMovItem(m) {
-    const cat = Parser.CATEGORIAS[m.categoria] || Parser.CATEGORIAS.otros;
+    const cats = Parser.getCategoriasMerged();
+    const cat = cats[m.categoria] || Parser.CATEGORIAS.otros;
     const cuentaLabel = { efectivo: 'Efectivo', tarjeta_debito: 'T. Débito', tarjeta_credito: 'T. Crédito', banco: 'Banco' };
-    const catNombre = m.categoria.charAt(0).toUpperCase() + m.categoria.slice(1);
+    const catNombre = cat.nombre || m.categoria;
     return `
       <div class="mov-item" data-id="${m.id}">
         <div class="mov-icon" style="background:${m.tipo === 'ingreso' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}">
@@ -137,6 +138,7 @@ const HistorialView = (() => {
           📅 ${Parser.fechaLegible(m.fecha)}
         </div>
         <div class="detail-actions">
+          <button class="btn-detail btn-edit" data-edit="${m.id}">✏️ Editar</button>
           <button class="btn-detail btn-delete" data-delete="${m.id}">🗑️ Eliminar</button>
         </div>
       </div>
@@ -150,9 +152,18 @@ const HistorialView = (() => {
         const detail = document.getElementById(`detail-${id}`);
         if (!detail) return;
         const abierto = detail.classList.contains('open');
-        // Cerrar todos
         document.querySelectorAll('.mov-item-detail.open').forEach(d => d.classList.remove('open'));
         if (!abierto) detail.classList.add('open');
+      });
+    });
+
+    document.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.edit);
+        const movs = await DB.obtenerMovimientos();
+        const mov = movs.find(m => m.id === id);
+        if (mov) EditarMovView.abrir(mov, cargarMovimientos);
       });
     });
 

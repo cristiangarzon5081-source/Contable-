@@ -4,15 +4,17 @@
  */
 
 const EstadisticasView = (() => {
-  let _todosMovimientos = [];   // cache para el detalle
-  let _viendoDetalle = false;
-  let _catDetalle = null;
+  let _todosMovimientos = [];
+  let _presupuestos = [];
 
   async function render() {
     const container = document.getElementById('view-container');
     container.innerHTML = `<div class="estadisticas-wrap fade-in"><div class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div></div>`;
     try {
-      _todosMovimientos = await DB.obtenerMovimientos();
+      [_todosMovimientos, _presupuestos] = await Promise.all([
+        DB.obtenerMovimientos(),
+        DB.obtenerPresupuestos()
+      ]);
       await Parser.cargarCatsPersonalizadas();
       container.innerHTML = buildEstadisticas(_todosMovimientos);
       bindCatItems();
@@ -141,7 +143,7 @@ const EstadisticasView = (() => {
           </div>
         </div>
 
-        <!-- Categorías del mes — TAPPABLES -->
+        // Categorías del mes — TAPPABLES + PRESUPUESTO
         ${catOrdenadas.length ? `
           <div class="chart-wrap">
             <div class="chart-title">🏷️ Egresos por categoría — ${Parser.nombreMesLargo(mesActual)}
@@ -154,6 +156,10 @@ const EstadisticasView = (() => {
                 const pct = totalEgresosMes > 0 ? Math.round((monto / totalEgresosMes) * 100) : 0;
                 const color = colores[idx % colores.length];
                 const numMovs = egresosDelMes.filter(m => m.categoria === cat).length;
+                // Presupuesto de esta categoría
+                const presup = _presupuestos.find(p => p.categoriaSlug === cat && (p.mes === prefMes || p.mes === 'todos'));
+                const pctPresup = presup ? Math.min(100, Math.round((monto / presup.monto) * 100)) : null;
+                const colorPresup = pctPresup === null ? null : pctPresup >= 100 ? 'var(--red)' : pctPresup >= 80 ? 'var(--yellow)' : 'var(--green)';
                 return `
                   <div class="cat-item cat-item-tappable" data-cat="${cat}" data-mes="${prefMes}">
                     <div class="cat-header">
@@ -161,13 +167,33 @@ const EstadisticasView = (() => {
                         <span style="font-size:11px;color:var(--text3);margin-left:4px;">(${numMovs})</span>
                       </div>
                       <div style="display:flex;align-items:center;gap:8px;">
-                        <div class="cat-monto">${Parser.formatCOP(monto)} <span style="font-size:11px;color:var(--text3)">${pct}%</span></div>
+                        <div class="cat-monto">${Parser.formatCOP(monto)}
+                          ${presup ? `<span style="font-size:11px;color:${colorPresup};margin-left:4px;">${pctPresup}%</span>` : `<span style="font-size:11px;color:var(--text3)"> ${pct}%</span>`}
+                        </div>
+                        <button class="btn-presupuesto-cat" data-cat="${cat}" data-mes="${prefMes}"
+                          data-gasto="${monto}" data-nombre="${info.nombre || cat}"
+                          title="${presup ? 'Editar presupuesto' : 'Definir presupuesto'}">
+                          ${presup ? '📊' : '＋'}
+                        </button>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
                           <polyline points="9 18 15 12 9 6"/>
                         </svg>
                       </div>
                     </div>
-                    <div class="cat-bar"><div class="cat-fill" style="width:${pct}%;background:${color}"></div></div>
+                    <div class="cat-bar">
+                      <div class="cat-fill" style="width:${pct}%;background:${color}"></div>
+                    </div>
+                    ${presup ? `
+                      <div style="margin-top:5px;">
+                        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:3px;">
+                          <span>Presupuesto: ${Parser.formatCOP(presup.monto)}</span>
+                          <span style="color:${colorPresup}">${pctPresup >= 100 ? '⚠️ Superado' : `Falta ${Parser.formatCOP(presup.monto - monto)}`}</span>
+                        </div>
+                        <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+                          <div style="height:100%;width:${pctPresup}%;background:${colorPresup};border-radius:2px;transition:width 0.5s;"></div>
+                        </div>
+                      </div>
+                    ` : ''}
                   </div>
                 `;
               }).join('')}
@@ -213,10 +239,22 @@ const EstadisticasView = (() => {
   // ── DETALLE DE CATEGORÍA ──────────────────────────────────────
   function bindCatItems() {
     document.querySelectorAll('.cat-item-tappable').forEach(el => {
-      el.addEventListener('click', () => {
-        const cat = el.dataset.cat;
-        const mes = el.dataset.mes;   // ej: "2026-11"
-        mostrarDetalleCat(cat, mes);
+      el.addEventListener('click', e => {
+        if (e.target.closest('.btn-presupuesto-cat')) return;
+        mostrarDetalleCat(el.dataset.cat, el.dataset.mes);
+      });
+    });
+
+    document.querySelectorAll('.btn-presupuesto-cat').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        PresupuestosView.abrir(
+          btn.dataset.cat,
+          btn.dataset.nombre,
+          btn.dataset.mes,
+          parseFloat(btn.dataset.gasto) || 0,
+          () => render()
+        );
       });
     });
   }

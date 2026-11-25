@@ -12,40 +12,38 @@ const DB = (() => {
     movimientos: 'movimientos',
     prestamos: 'prestamos',
     abonos: 'abonos',
-    categorias: 'categorias'     // ← nuevo
+    categorias: 'categorias',
+    presupuestos: 'presupuestos'
   };
 
   function open() {
     return new Promise((resolve, reject) => {
       if (db) { resolve(db); return; }
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const req = indexedDB.open(DB_NAME, 3); // versión 3
 
       req.onupgradeneeded = e => {
         const d = e.target.result;
-
         if (!d.objectStoreNames.contains(STORES.movimientos)) {
           const s = d.createObjectStore(STORES.movimientos, { keyPath: 'id', autoIncrement: true });
-          s.createIndex('fecha', 'fecha');
-          s.createIndex('tipo', 'tipo');
-          s.createIndex('categoria', 'categoria');
-          s.createIndex('cuenta', 'cuenta');
+          s.createIndex('fecha', 'fecha'); s.createIndex('tipo', 'tipo');
+          s.createIndex('categoria', 'categoria'); s.createIndex('cuenta', 'cuenta');
         }
         if (!d.objectStoreNames.contains(STORES.prestamos)) {
           const s = d.createObjectStore(STORES.prestamos, { keyPath: 'id', autoIncrement: true });
-          s.createIndex('tipo', 'tipo');
-          s.createIndex('estado', 'estado');
-          s.createIndex('persona', 'persona');
+          s.createIndex('tipo', 'tipo'); s.createIndex('estado', 'estado'); s.createIndex('persona', 'persona');
         }
         if (!d.objectStoreNames.contains(STORES.abonos)) {
           const s = d.createObjectStore(STORES.abonos, { keyPath: 'id', autoIncrement: true });
-          s.createIndex('prestamo_id', 'prestamo_id');
-          s.createIndex('fecha', 'fecha');
+          s.createIndex('prestamo_id', 'prestamo_id'); s.createIndex('fecha', 'fecha');
         }
-        // Categorías personalizadas (creadas o editadas por el usuario)
         if (!d.objectStoreNames.contains(STORES.categorias)) {
           const s = d.createObjectStore(STORES.categorias, { keyPath: 'slug' });
-          // slug = identificador único ej: "ropa", "mi_categoria"
-          s.createIndex('tipo', 'tipo');   // 'egreso' | 'ingreso' | 'ambos'
+          s.createIndex('tipo', 'tipo');
+        }
+        // Presupuestos: { slug (categoria), monto, mes ('2026-11' o 'todos') }
+        if (!d.objectStoreNames.contains(STORES.presupuestos)) {
+          d.createObjectStore(STORES.presupuestos, { keyPath: 'id' });
+          // id = slug + '_' + mes  ej: 'alimentacion_2026-11' o 'alimentacion_todos'
         }
       };
 
@@ -243,10 +241,32 @@ const DB = (() => {
     return promisify(tx(STORES.categorias, 'readwrite').delete(slug));
   }
 
+  // ── PRESUPUESTOS ──────────────────────────────────────────────
+  async function guardarPresupuesto(categoriaSlug, monto, mes = 'todos') {
+    await open();
+    const id = `${categoriaSlug}_${mes}`;
+    return promisify(tx(STORES.presupuestos, 'readwrite').put({ id, categoriaSlug, monto, mes }));
+  }
+
+  async function obtenerPresupuestos() {
+    await open();
+    return new Promise((resolve, reject) => {
+      const req = tx(STORES.presupuestos).getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function eliminarPresupuesto(categoriaSlug, mes = 'todos') {
+    await open();
+    return promisify(tx(STORES.presupuestos, 'readwrite').delete(`${categoriaSlug}_${mes}`));
+  }
+
   return {
     agregarMovimiento, obtenerMovimientos, eliminarMovimiento, editarMovimiento,
     agregarPrestamo, obtenerPrestamos, actualizarPrestamo, eliminarPrestamo,
     agregarAbono, obtenerAbonos, obtenerTodosAbonos,
-    guardarCategoria, obtenerCategorias, eliminarCategoria
+    guardarCategoria, obtenerCategorias, eliminarCategoria,
+    guardarPresupuesto, obtenerPresupuestos, eliminarPresupuesto
   };
 })();

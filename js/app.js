@@ -600,7 +600,7 @@ const App = (() => {
     if (navigator.vibrate) navigator.vibrate(50);
   }
 
-  return { init, navegarA, abrirModalEntrada, abrirModalPrestamo };
+  return { init, navegarA, abrirModalEntrada, abrirModalPrestamo, _abrirCatSelector: abrirCatSelector };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());

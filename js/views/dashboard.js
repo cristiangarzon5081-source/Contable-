@@ -10,13 +10,13 @@ const DashboardView = (() => {
     container.innerHTML = '<div class="dashboard-wrap fade-in"><div class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div></div>';
 
     try {
-      const [movimientos, prestamos, todosAbonos] = await Promise.all([
+      const [movimientos, prestamos, todosAbonos, presupuestos] = await Promise.all([
         DB.obtenerMovimientos(),
         DB.obtenerPrestamos({ estado: 'activo' }),
-        DB.obtenerTodosAbonos()
+        DB.obtenerTodosAbonos(),
+        DB.obtenerPresupuestos()
       ]);
-
-      const html = await buildDashboard(movimientos, prestamos, todosAbonos);
+      const html = await buildDashboard(movimientos, prestamos, todosAbonos, presupuestos);
       container.innerHTML = html;
       bindEvents(movimientos, prestamos);
     } catch (e) {
@@ -24,7 +24,7 @@ const DashboardView = (() => {
     }
   }
 
-  async function buildDashboard(movimientos, prestamos, todosAbonos) {
+  async function buildDashboard(movimientos, prestamos, todosAbonos, presupuestos = []) {
     const { desde, hasta } = Parser.getRangoFecha(periodoActual);
     const movsFiltrados = movimientos.filter(m =>
       (!desde || m.fecha >= desde) && (!hasta || m.fecha <= hasta)
@@ -43,7 +43,7 @@ const DashboardView = (() => {
     else if (egresos > ingresos * 0.8) { saludClass = 'salud-amarillo'; saludText = '⚡ Gastos elevados'; }
 
     // Alertas inteligentes
-    const alertas = generarAlertas(movimientos, prestamos, todosAbonos, proy);
+    const alertas = generarAlertas(movimientos, prestamos, todosAbonos, proy, presupuestos);
 
     // Movimientos recientes (últimos 5)
     const recientes = movimientos.slice(0, 5);
@@ -167,45 +167,57 @@ const DashboardView = (() => {
     `;
   }
 
-  function generarAlertas(movimientos, prestamos, todosAbonos, proy) {
+  function generarAlertas(movimientos, prestamos, todosAbonos, proy, presupuestos = []) {
     const alertas = [];
     const hoy = new Date().toISOString().split('T')[0];
+    const prefMes = new Date().toISOString().slice(0, 7);
 
-    // Alerta: gastos superan ingresos este mes
     if (proy.egresosMes > proy.ingresosMes && proy.ingresosMes > 0) {
-      alertas.push({
-        tipo: 'danger', icono: '🔴',
+      alertas.push({ tipo: 'danger', icono: '🔴',
         mensaje: `Tus egresos (${Parser.formatCOP(proy.egresosMes)}) superan tus ingresos del mes (${Parser.formatCOP(proy.ingresosMes)}).`
       });
     }
-    // Alerta: proyección negativa
     if (proy.proyeccionSaldo < 0 && proy.ingresosMes > 0) {
-      alertas.push({
-        tipo: 'warn', icono: '⚡',
+      alertas.push({ tipo: 'warn', icono: '⚡',
         mensaje: `Al ritmo actual terminarás el mes con déficit de ${Parser.formatCOP(Math.abs(proy.proyeccionSaldo))}.`
       });
     }
-    // Alerta: préstamos próximos a vencer
+    // Alertas de presupuesto
+    for (const presup of presupuestos) {
+      const mes = presup.mes === 'todos' ? prefMes : presup.mes;
+      if (mes !== prefMes) continue;
+      const gastado = movimientos
+        .filter(m => m.tipo === 'egreso' && m.categoria === presup.categoriaSlug && m.fecha.startsWith(prefMes))
+        .reduce((s, m) => s + m.monto, 0);
+      const pct = Math.round((gastado / presup.monto) * 100);
+      const cats = Parser.getCategoriasMerged();
+      const info = cats[presup.categoriaSlug] || Parser.CATEGORIAS.otros;
+      if (pct >= 100) {
+        alertas.push({ tipo: 'danger', icono: '🚨',
+          mensaje: `${info.emoji} Superaste el presupuesto de ${info.nombre || presup.categoriaSlug}: ${Parser.formatCOP(gastado)} / ${Parser.formatCOP(presup.monto)}.`
+        });
+      } else if (pct >= 80) {
+        alertas.push({ tipo: 'warn', icono: '⚠️',
+          mensaje: `${info.emoji} Llevas el ${pct}% del presupuesto de ${info.nombre || presup.categoriaSlug} (${Parser.formatCOP(gastado)} / ${Parser.formatCOP(presup.monto)}).`
+        });
+      }
+    }
     for (const p of prestamos) {
       if (p.fechaFin) {
         const dias = Parser.diasEntre(hoy, p.fechaFin);
         if (dias >= 0 && dias <= 7) {
-          alertas.push({
-            tipo: 'warn', icono: '📅',
+          alertas.push({ tipo: 'warn', icono: '📅',
             mensaje: `Préstamo con ${p.persona} vence en ${dias === 0 ? 'hoy' : dias + ' días'} (${Parser.formatCOP(p.montoOriginal)}).`
           });
         }
       }
     }
-    // Alerta: sin ingresos registrados este mes
     if (proy.ingresosMes === 0 && proy.egresosMes > 0) {
-      alertas.push({
-        tipo: 'info', icono: '💡',
+      alertas.push({ tipo: 'info', icono: '💡',
         mensaje: 'No tienes ingresos registrados este mes. ¿Recibiste tu pago?'
       });
     }
-
-    return alertas.slice(0, 3);
+    return alertas.slice(0, 4);
   }
 
   function buildMovItem(m) {
