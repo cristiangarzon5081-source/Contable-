@@ -1028,3 +1028,64 @@ textarea.input-desc {
   background: rgba(245,158,11,0.1); color: var(--yellow);
   font-size: 13px; line-height: 1.4;
 }
+
+/* ── ESTADÍSTICAS REDISEÑADAS ──────────────────────────────────── */
+.stats-wrap { padding-top: 12px; }
+
+.stats-tabs-row {
+  display: flex; margin: 0 16px 12px;
+  background: var(--bg2); border-radius: 10px; padding: 3px;
+}
+.stats-tab {
+  flex: 1; padding: 8px; border-radius: 8px;
+  border: none; background: transparent;
+  color: var(--text2); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.stats-tab.active { background: var(--accent); color: white; }
+
+.stats-periodo-row {
+  display: flex; gap: 8px; padding: 0 16px; margin-bottom: 12px;
+}
+.stats-period-sel {
+  flex: 1; padding: 9px 12px; border-radius: 10px;
+  background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text); font-size: 14px; outline: none;
+  font-family: inherit;
+}
+
+.stats-resumen-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin: 0 16px 12px;
+}
+
+.stats-comp-banner {
+  padding: 10px 14px; border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+}
+.stats-comp-banner.mejor { background: rgba(16,185,129,0.1); color: var(--green); }
+.stats-comp-banner.peor  { background: rgba(239,68,68,0.1);  color: #f87171; }
+
+/* Pastel */
+.pastel-container {
+  display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap;
+}
+.pastel-svg { flex-shrink: 0; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+.pastel-leyenda {
+  flex: 1; min-width: 120px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pastel-ley-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; cursor: pointer; border-radius: 6px;
+  padding: 3px 5px; transition: background 0.15s;
+}
+.pastel-ley-item:active { background: var(--bg3); }
+.pastel-ley-item.activo { background: var(--bg3); font-weight: 700; }
+.pastel-ley-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.pastel-ley-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pastel-ley-pct { color: var(--text3); flex-shrink: 0; }
+
+.cat-activa { background: var(--bg3) !important; border-radius: 10px; }

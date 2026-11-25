@@ -1,237 +1,476 @@
 /**
  * CONTABLE - Vista Estadísticas
- * Las categorías del mes son tappables → muestra detalle de movimientos
+ * Tabs: Semana / Mes / Año
+ * Gráfico de pastel SVG interactivo
  */
 
 const EstadisticasView = (() => {
-  let _todosMovimientos = [];
+  let _todos = [];
   let _presupuestos = [];
+  let _tab = 'mes';          // 'semana' | 'mes' | 'año'
+  let _añoSel = new Date().getFullYear();
+  let _mesSel  = new Date().getMonth();   // 0-11
+  let _semanaSel = 0;        // offset desde hoy: 0=esta semana, -1=anterior...
+  let _catPasteActiva = null; // slug de la categoría activa en el pastel
 
+  const COLORES = [
+    '#f87171','#fb923c','#fbbf24','#34d399','#60a5fa',
+    '#a78bfa','#f472b6','#67e8f9','#86efac','#fda4af',
+    '#c4b5fd','#6ee7b7','#93c5fd','#fcd34d','#a5b4fc'
+  ];
+
+  // ── RENDER PRINCIPAL ──────────────────────────────────────────
   async function render() {
     const container = document.getElementById('view-container');
-    container.innerHTML = `<div class="estadisticas-wrap fade-in"><div class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div></div>`;
+    container.innerHTML = `<div class="stats-wrap fade-in"><div class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div></div>`;
     try {
-      [_todosMovimientos, _presupuestos] = await Promise.all([
-        DB.obtenerMovimientos(),
-        DB.obtenerPresupuestos()
+      [_todos, _presupuestos] = await Promise.all([
+        DB.obtenerMovimientos(), DB.obtenerPresupuestos()
       ]);
       await Parser.cargarCatsPersonalizadas();
-      container.innerHTML = buildEstadisticas(_todosMovimientos);
-      bindCatItems();
+      if (!_todos.length) {
+        container.innerHTML = `<div class="stats-wrap fade-in"><div class="empty-state">
+          <div class="empty-icon">📊</div><div class="empty-title">Sin datos aún</div>
+          <p>Registra movimientos para ver estadísticas</p></div></div>`;
+        return;
+      }
+      pintarVista(container);
     } catch (e) {
-      container.innerHTML = '<div class="empty-state"><p>Error al cargar estadísticas</p></div>';
+      container.innerHTML = `<div class="empty-state"><p>Error al cargar</p></div>`;
     }
   }
 
-  // ── VISTA PRINCIPAL ───────────────────────────────────────────
-  function buildEstadisticas(movimientos) {
-    if (!movimientos.length) {
-      return `<div class="estadisticas-wrap fade-in">
-        <div class="empty-state">
-          <div class="empty-icon">📊</div>
-          <div class="empty-title">Sin datos aún</div>
-          <p>Registra movimientos para ver estadísticas</p>
-        </div></div>`;
-    }
+  function pintarVista(container) {
+    const años = getAñosDisponibles();
+    if (!años.includes(_añoSel)) _añoSel = años[0];
 
-    const hoy = new Date();
-    const mesActual = hoy.getMonth();
-    const añoActual = hoy.getFullYear();
+    container.innerHTML = `
+      <div class="stats-wrap fade-in">
+        <!-- Tabs semana/mes/año -->
+        <div class="stats-tabs-row">
+          ${['semana','mes','año'].map(t => `
+            <button class="stats-tab ${_tab === t ? 'active' : ''}" data-tab="${t}">
+              ${t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>`).join('')}
+        </div>
 
-    // Últimos 6 meses
-    const datosMeses = [];
-    for (let i = 5; i >= 0; i--) {
-      const fecha = new Date(añoActual, mesActual - i, 1);
-      const mes = fecha.getMonth();
-      const año = fecha.getFullYear();
-      const pref = `${año}-${String(mes + 1).padStart(2, '0')}`;
-      const movsM = movimientos.filter(m => m.fecha.startsWith(pref));
-      datosMeses.push({
-        label: Parser.nombreMes(mes),
-        ingresos: movsM.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0),
-        egresos: movsM.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0),
-        mes, año
+        <!-- Selector de período según tab -->
+        <div class="stats-periodo-row" id="stats-periodo-row">
+          ${buildSelectorPeriodo(años)}
+        </div>
+
+        <!-- Contenido dinámico -->
+        <div id="stats-content"></div>
+      </div>
+    `;
+
+    // Bindings de tabs
+    container.querySelectorAll('.stats-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _tab = btn.dataset.tab;
+        _catPasteActiva = null;
+        pintarVista(container);
       });
+    });
+
+    bindSelectorPeriodo(container, años);
+    renderContenido();
+  }
+
+  // ── SELECTOR DE PERÍODO ───────────────────────────────────────
+  function buildSelectorPeriodo(años) {
+    if (_tab === 'semana') {
+      const labels = getLabelsSemanales();
+      return `<select class="stats-period-sel" id="sel-semana">
+        ${labels.map((l, i) => `<option value="${i}" ${_semanaSel === i ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>`;
     }
-
-    const mesHoy = datosMeses[datosMeses.length - 1];
-    const mesPasado = datosMeses[datosMeses.length - 2];
-
-    const cambioIngresos = mesPasado.ingresos > 0
-      ? Math.round(((mesHoy.ingresos - mesPasado.ingresos) / mesPasado.ingresos) * 100) : null;
-    const cambioEgresos = mesPasado.egresos > 0
-      ? Math.round(((mesHoy.egresos - mesPasado.egresos) / mesPasado.egresos) * 100) : null;
-
-    // Categorías del mes
-    const prefMes = `${añoActual}-${String(mesActual + 1).padStart(2, '0')}`;
-    const egresosDelMes = movimientos.filter(m => m.fecha.startsWith(prefMes) && m.tipo === 'egreso');
-    const totalEgresosMes = egresosDelMes.reduce((s, m) => s + m.monto, 0);
-
-    const porCategoria = {};
-    for (const m of egresosDelMes) {
-      if (!porCategoria[m.categoria]) porCategoria[m.categoria] = 0;
-      porCategoria[m.categoria] += m.monto;
+    if (_tab === 'mes') {
+      const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      return `
+        <select class="stats-period-sel" id="sel-mes">
+          ${meses.map((m, i) => `<option value="${i}" ${_mesSel === i ? 'selected' : ''}>${m}</option>`).join('')}
+        </select>
+        <select class="stats-period-sel" id="sel-año-mes">
+          ${años.map(a => `<option value="${a}" ${_añoSel === a ? 'selected' : ''}>${a}</option>`).join('')}
+        </select>`;
     }
-    const catOrdenadas = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
+    // año
+    return `<select class="stats-period-sel" id="sel-año">
+      ${años.map(a => `<option value="${a}" ${_añoSel === a ? 'selected' : ''}>${a}</option>`).join('')}
+    </select>`;
+  }
 
-    const maxEgreso = Math.max(...datosMeses.map(d => d.egresos), 1);
-    const maxIngreso = Math.max(...datosMeses.map(d => d.ingresos), 1);
-    const promDiario = hoy.getDate() > 0 ? mesHoy.egresos / hoy.getDate() : 0;
+  function getLabelsSemanales() {
+    const labels = [];
+    for (let i = 0; i <= 7; i++) {
+      const lunes = getLunesDeSemana(i);
+      const dom   = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      if (i === 0) labels.push(`Esta semana (${fmtDia(lunes)} – ${fmtDia(dom)})`);
+      else labels.push(`${fmtDia(lunes)} – ${fmtDia(dom)}`);
+    }
+    return labels;
+  }
 
-    // Día con más gastos
-    const hace30 = new Date(hoy.getTime() - 30 * 86400000).toISOString().split('T')[0];
-    const ultimos30 = movimientos.filter(m => m.fecha >= hace30 && m.tipo === 'egreso');
-    const porDia = [0, 0, 0, 0, 0, 0, 0];
-    for (const m of ultimos30) porDia[new Date(m.fecha + 'T12:00:00').getDay()] += m.monto;
-    const diasNombre = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  function fmtDia(d) {
+    return `${d.getDate()} ${Parser.nombreMes(d.getMonth())}`;
+  }
+
+  function getLunesDeSemana(offsetSemanas) {
+    const hoy = new Date();
+    const dia = hoy.getDay();
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - (dia === 0 ? 6 : dia - 1) - offsetSemanas * 7);
+    lunes.setHours(0,0,0,0);
+    return lunes;
+  }
+
+  function bindSelectorPeriodo(container, años) {
+    const selSem  = document.getElementById('sel-semana');
+    const selMes  = document.getElementById('sel-mes');
+    const selAñoM = document.getElementById('sel-año-mes');
+    const selAño  = document.getElementById('sel-año');
+
+    if (selSem)  selSem.onchange  = e => { _semanaSel = parseInt(e.target.value); renderContenido(); };
+    if (selMes)  selMes.onchange  = e => { _mesSel  = parseInt(e.target.value); renderContenido(); };
+    if (selAñoM) selAñoM.onchange = e => { _añoSel  = parseInt(e.target.value); renderContenido(); };
+    if (selAño)  selAño.onchange  = e => { _añoSel  = parseInt(e.target.value); renderContenido(); };
+  }
+
+  // ── CONTENIDO SEGÚN TAB ───────────────────────────────────────
+  function renderContenido() {
+    const el = document.getElementById('stats-content');
+    if (!el) return;
+    if (_tab === 'semana') el.innerHTML = buildSemana();
+    if (_tab === 'mes')    el.innerHTML = buildMes();
+    if (_tab === 'año')    el.innerHTML = buildAño();
+    bindCatItems();
+    if (_tab !== 'semana') bindPastel();
+  }
+
+  // ══ TAB SEMANA ════════════════════════════════════════════════
+  function buildSemana() {
+    const lunes = getLunesDeSemana(_semanaSel);
+    const dom   = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+    const desde = lunes.toISOString().split('T')[0];
+    const hasta = dom.toISOString().split('T')[0];
+
+    const movs = _todos.filter(m => m.fecha >= desde && m.fecha <= hasta);
+    const egresos  = movs.filter(m => m.tipo === 'egreso').reduce((s,m) => s+m.monto, 0);
+    const ingresos = movs.filter(m => m.tipo === 'ingreso').reduce((s,m) => s+m.monto, 0);
+
+    // Semana anterior para comparar
+    const lunesAnt = getLunesDeSemana(_semanaSel + 1);
+    const domAnt   = new Date(lunesAnt); domAnt.setDate(lunesAnt.getDate() + 6);
+    const egresosAnt = _todos
+      .filter(m => m.tipo === 'egreso' && m.fecha >= lunesAnt.toISOString().split('T')[0] && m.fecha <= domAnt.toISOString().split('T')[0])
+      .reduce((s,m) => s+m.monto, 0);
+
+    const diff = egresos - egresosAnt;
+    const mejoro = diff < 0 && egresosAnt > 0;
+
+    // Por día
+    const diasNombre = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    const porDia = Array(7).fill(0);
+    for (const m of movs.filter(m => m.tipo === 'egreso')) {
+      const d = new Date(m.fecha + 'T12:00:00');
+      const idx = (d.getDay() + 6) % 7; // lunes=0
+      porDia[idx] += m.monto;
+    }
     const maxDia = Math.max(...porDia, 1);
-    const diaMax = porDia.indexOf(Math.max(...porDia));
 
-    const porCuenta = {};
-    for (const m of movimientos) { porCuenta[m.cuenta] = (porCuenta[m.cuenta] || 0) + 1; }
-    const cuentaMasUsada = Object.entries(porCuenta).sort((a, b) => b[1] - a[1])[0];
-    const cuentaLabels = { efectivo: 'Efectivo', tarjeta_debito: 'T. Débito', tarjeta_credito: 'T. Crédito', banco: 'Banco' };
-
-    const colores = ['#f87171','#fb923c','#fbbf24','#34d399','#60a5fa','#a78bfa','#f472b6','#67e8f9','#86efac','#fda4af'];
+    // Categorías
+    const { porCat, totalCat } = calcularCategorias(movs.filter(m => m.tipo === 'egreso'));
+    const catOrdenadas = Object.entries(porCat).sort((a,b) => b[1]-a[1]);
 
     return `
-      <div class="estadisticas-wrap fade-in">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">Ingresos ${Parser.nombreMes(mesActual)}</div>
-            <div class="stat-val text-green">${Parser.formatCOP(mesHoy.ingresos)}</div>
-            ${cambioIngresos !== null ? `<div class="stat-change ${cambioIngresos >= 0 ? 'stat-up' : 'stat-down'}">${cambioIngresos >= 0 ? '▲' : '▼'} ${Math.abs(cambioIngresos)}% vs mes ant.</div>` : ''}
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Egresos ${Parser.nombreMes(mesActual)}</div>
-            <div class="stat-val text-red">${Parser.formatCOP(mesHoy.egresos)}</div>
-            ${cambioEgresos !== null ? `<div class="stat-change ${cambioEgresos <= 0 ? 'stat-up' : 'stat-down'}">${cambioEgresos >= 0 ? '▲' : '▼'} ${Math.abs(cambioEgresos)}% vs mes ant.</div>` : ''}
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Promedio diario</div>
-            <div class="stat-val">${Parser.formatCOP(promDiario)}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Cuenta favorita</div>
-            <div class="stat-val" style="font-size:15px">${cuentaMasUsada ? cuentaLabels[cuentaMasUsada[0]] || cuentaMasUsada[0] : '-'}</div>
+      <div class="stats-resumen-cards">
+        <div class="stat-card"><div class="stat-label">Egresos</div><div class="stat-val text-red">${Parser.formatCOP(egresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Ingresos</div><div class="stat-val text-green">${Parser.formatCOP(ingresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Saldo</div><div class="stat-val ${ingresos-egresos>=0?'text-green':'text-red'}">${Parser.formatCOP(ingresos-egresos)}</div></div>
+      </div>
+
+      ${egresosAnt > 0 ? `
+        <div class="chart-wrap">
+          <div class="stats-comp-banner ${mejoro ? 'mejor' : 'peor'}">
+            ${mejoro ? '📉' : '📈'}
+            ${mejoro
+              ? `Gastaste <strong>${Parser.formatCOP(Math.abs(diff))}</strong> menos que la semana anterior`
+              : `Gastaste <strong>${Parser.formatCOP(Math.abs(diff))}</strong> más que la semana anterior`}
           </div>
         </div>
+      ` : ''}
 
-        <!-- Gráfico 6 meses -->
-        <div class="chart-wrap">
-          <div class="chart-title">📈 Ingresos vs Egresos (6 meses)</div>
-          <div style="display:flex;gap:10px;margin-bottom:8px;">
-            <span style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--text2)">
-              <span style="width:10px;height:10px;border-radius:2px;background:var(--green);display:inline-block"></span>Ingresos
-            </span>
-            <span style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--text2)">
-              <span style="width:10px;height:10px;border-radius:2px;background:var(--red);display:inline-block"></span>Egresos
-            </span>
-          </div>
-          <div style="display:flex;gap:4px;align-items:flex-end;height:110px;">
-            ${datosMeses.map(d => {
-              const hI = maxIngreso > 0 ? Math.max(4, Math.round((d.ingresos / maxIngreso) * 90)) : 4;
-              const hE = maxEgreso > 0 ? Math.max(4, Math.round((d.egresos / maxEgreso) * 90)) : 4;
-              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;justify-content:flex-end;height:100%;">
-                <div style="width:100%;display:flex;gap:1px;align-items:flex-end;justify-content:center;flex:1;">
-                  <div style="flex:1;height:${hI}px;background:var(--green);border-radius:3px 3px 0 0;opacity:0.85"></div>
-                  <div style="flex:1;height:${hE}px;background:var(--red);border-radius:3px 3px 0 0;opacity:0.85"></div>
-                </div>
-                <div style="font-size:10px;color:var(--text3)">${d.label}</div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>
-
-        // Categorías del mes — TAPPABLES + PRESUPUESTO
-        ${catOrdenadas.length ? `
-          <div class="chart-wrap">
-            <div class="chart-title">🏷️ Egresos por categoría — ${Parser.nombreMesLargo(mesActual)}
-              <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px;">Toca para ver detalle</span>
-            </div>
-            <div class="cat-list">
-              ${catOrdenadas.map(([cat, monto], idx) => {
-                const cats = Parser.getCategoriasMerged();
-                const info = cats[cat] || Parser.CATEGORIAS.otros;
-                const pct = totalEgresosMes > 0 ? Math.round((monto / totalEgresosMes) * 100) : 0;
-                const color = colores[idx % colores.length];
-                const numMovs = egresosDelMes.filter(m => m.categoria === cat).length;
-                // Presupuesto de esta categoría
-                const presup = _presupuestos.find(p => p.categoriaSlug === cat && (p.mes === prefMes || p.mes === 'todos'));
-                const pctPresup = presup ? Math.min(100, Math.round((monto / presup.monto) * 100)) : null;
-                const colorPresup = pctPresup === null ? null : pctPresup >= 100 ? 'var(--red)' : pctPresup >= 80 ? 'var(--yellow)' : 'var(--green)';
-                return `
-                  <div class="cat-item cat-item-tappable" data-cat="${cat}" data-mes="${prefMes}">
-                    <div class="cat-header">
-                      <div class="cat-name">${info.emoji} ${info.nombre || cat}
-                        <span style="font-size:11px;color:var(--text3);margin-left:4px;">(${numMovs})</span>
-                      </div>
-                      <div style="display:flex;align-items:center;gap:8px;">
-                        <div class="cat-monto">${Parser.formatCOP(monto)}
-                          ${presup ? `<span style="font-size:11px;color:${colorPresup};margin-left:4px;">${pctPresup}%</span>` : `<span style="font-size:11px;color:var(--text3)"> ${pct}%</span>`}
-                        </div>
-                        <button class="btn-presupuesto-cat" data-cat="${cat}" data-mes="${prefMes}"
-                          data-gasto="${monto}" data-nombre="${info.nombre || cat}"
-                          title="${presup ? 'Editar presupuesto' : 'Definir presupuesto'}">
-                          ${presup ? '📊' : '＋'}
-                        </button>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
-                          <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                      </div>
-                    </div>
-                    <div class="cat-bar">
-                      <div class="cat-fill" style="width:${pct}%;background:${color}"></div>
-                    </div>
-                    ${presup ? `
-                      <div style="margin-top:5px;">
-                        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:3px;">
-                          <span>Presupuesto: ${Parser.formatCOP(presup.monto)}</span>
-                          <span style="color:${colorPresup}">${pctPresup >= 100 ? '⚠️ Superado' : `Falta ${Parser.formatCOP(presup.monto - monto)}`}</span>
-                        </div>
-                        <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
-                          <div style="height:100%;width:${pctPresup}%;background:${colorPresup};border-radius:2px;transition:width 0.5s;"></div>
-                        </div>
-                      </div>
-                    ` : ''}
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- Día de la semana -->
-        <div class="chart-wrap">
-          <div class="chart-title">📅 Gastos por día de semana (últimos 30 días)</div>
-          <div class="bar-chart">
-            ${diasNombre.map((nombre, idx) => {
-              const h = maxDia > 0 ? Math.max(4, Math.round((porDia[idx] / maxDia) * 85)) : 4;
-              const esMax = idx === diaMax && porDia[idx] > 0;
-              return `<div class="bar-item">
-                <div class="bar-fill" style="height:${h}px;background:${esMax ? 'var(--accent)' : 'var(--bg3)'};border-radius:4px 4px 0 0"></div>
-                <div class="bar-label" style="color:${esMax ? 'var(--accent2)' : 'var(--text3)'}">${nombre}</div>
-              </div>`;
-            }).join('')}
-          </div>
-          ${porDia[diaMax] > 0 ? `<div style="margin-top:8px;font-size:12px;color:var(--text3)">💡 Gastas más los <strong style="color:var(--accent2)">${diasNombre[diaMax]}</strong></div>` : ''}
-        </div>
-
-        <!-- Comparativo egresos -->
-        <div class="chart-wrap">
-          <div class="chart-title">📊 Comparativo de egresos</div>
-          ${datosMeses.map(d => {
-            const pct = maxEgreso > 0 ? Math.round((d.egresos / maxEgreso) * 100) : 0;
-            const esMesActual = d.mes === mesActual && d.año === añoActual;
-            return `<div class="comp-row">
-              <div class="comp-mes" style="color:${esMesActual ? 'var(--text)' : 'var(--text2)'};font-weight:${esMesActual ? '600' : '400'}">${d.label}${d.año !== añoActual ? ' ' + d.año : ''}</div>
-              <div class="comp-bar-wrap"><div class="comp-bar" style="width:${pct}%;background:${esMesActual ? 'var(--red)' : 'var(--bg3)'}"></div></div>
-              <div class="comp-val" style="color:${esMesActual ? 'var(--red)' : 'var(--text2)'}">${Parser.formatCOP(d.egresos)}</div>
+      <!-- Gráfico barras por día -->
+      <div class="chart-wrap">
+        <div class="chart-title">📅 Egresos por día</div>
+        <div style="display:flex;gap:6px;align-items:flex-end;height:90px;">
+          ${diasNombre.map((n, i) => {
+            const h = maxDia > 0 ? Math.max(4, Math.round((porDia[i]/maxDia)*80)) : 4;
+            const esMax = porDia[i] === Math.max(...porDia) && porDia[i] > 0;
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;justify-content:flex-end;height:100%;">
+              <div style="width:100%;height:${h}px;background:${esMax?'var(--accent)':'var(--bg3)'};border-radius:4px 4px 0 0"></div>
+              <div style="font-size:10px;color:${esMax?'var(--accent2)':'var(--text3)'}">${n}</div>
             </div>`;
           }).join('')}
         </div>
+      </div>
 
-        <div class="section-sep"></div>
+      ${catOrdenadas.length ? buildSeccionCategorias(catOrdenadas, totalCat, `${desde.slice(0,7)}`) : ''}
+    `;
+  }
+
+  // ══ TAB MES ═══════════════════════════════════════════════════
+  function buildMes() {
+    const pref = `${_añoSel}-${String(_mesSel+1).padStart(2,'0')}`;
+    const movsMes = _todos.filter(m => m.fecha.startsWith(pref));
+    const egresos  = movsMes.filter(m => m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+    const ingresos = movsMes.filter(m => m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+    const diasTransc = _mesSel === new Date().getMonth() && _añoSel === new Date().getFullYear()
+      ? new Date().getDate() : new Date(_añoSel, _mesSel+1, 0).getDate();
+    const promDiario = diasTransc > 0 ? egresos / diasTransc : 0;
+
+    // Mes anterior para comparar
+    const mesPrevMes = _mesSel === 0 ? 11 : _mesSel - 1;
+    const mesPrevAño = _mesSel === 0 ? _añoSel - 1 : _añoSel;
+    const prefPrev = `${mesPrevAño}-${String(mesPrevMes+1).padStart(2,'0')}`;
+    const egPrev = _todos.filter(m => m.fecha.startsWith(prefPrev) && m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+    const pctCambio = egPrev > 0 ? Math.round(((egresos-egPrev)/egPrev)*100) : null;
+
+    const { porCat, totalCat } = calcularCategorias(movsMes.filter(m => m.tipo==='egreso'));
+    const catOrdenadas = Object.entries(porCat).sort((a,b) => b[1]-a[1]);
+
+    return `
+      <div class="stats-resumen-cards">
+        <div class="stat-card"><div class="stat-label">Ingresos</div><div class="stat-val text-green">${Parser.formatCOP(ingresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Egresos</div><div class="stat-val text-red">${Parser.formatCOP(egresos)}</div>
+          ${pctCambio !== null ? `<div class="stat-change ${pctCambio<=0?'stat-up':'stat-down'}">${pctCambio>=0?'▲':'▼'} ${Math.abs(pctCambio)}% vs anterior</div>` : ''}
+        </div>
+        <div class="stat-card"><div class="stat-label">Saldo</div><div class="stat-val ${ingresos-egresos>=0?'text-green':'text-red'}">${Parser.formatCOP(ingresos-egresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Prom/día</div><div class="stat-val">${Parser.formatCOP(promDiario)}</div></div>
+      </div>
+
+      ${catOrdenadas.length ? `
+        ${buildPastelSVG(catOrdenadas, totalCat)}
+        ${buildSeccionCategorias(catOrdenadas, totalCat, pref)}
+      ` : `<div class="empty-state" style="padding:40px 0;"><div class="empty-icon">📭</div><p>Sin egresos en este mes</p></div>`}
+    `;
+  }
+
+  // ══ TAB AÑO ═══════════════════════════════════════════════════
+  function buildAño() {
+    const movsAño = _todos.filter(m => m.fecha.startsWith(`${_añoSel}`));
+    const egresos  = movsAño.filter(m => m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+    const ingresos = movsAño.filter(m => m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+
+    // Por mes
+    const meses = Array.from({length:12}, (_,i) => {
+      const pref = `${_añoSel}-${String(i+1).padStart(2,'0')}`;
+      const movsM = movsAño.filter(m => m.fecha.startsWith(pref));
+      return {
+        label: Parser.nombreMes(i), mes: i,
+        ingresos: movsM.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0),
+        egresos:  movsM.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0)
+      };
+    });
+
+    const maxI = Math.max(...meses.map(m=>m.ingresos), 1);
+    const maxE = Math.max(...meses.map(m=>m.egresos), 1);
+    const mesMaxGasto = [...meses].sort((a,b)=>b.egresos-a.egresos)[0];
+
+    const { porCat, totalCat } = calcularCategorias(movsAño.filter(m => m.tipo==='egreso'));
+    const catOrdenadas = Object.entries(porCat).sort((a,b) => b[1]-a[1]);
+
+    return `
+      <div class="stats-resumen-cards">
+        <div class="stat-card"><div class="stat-label">Ingresos ${_añoSel}</div><div class="stat-val text-green">${Parser.formatCOP(ingresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Egresos ${_añoSel}</div><div class="stat-val text-red">${Parser.formatCOP(egresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Saldo anual</div><div class="stat-val ${ingresos-egresos>=0?'text-green':'text-red'}">${Parser.formatCOP(ingresos-egresos)}</div></div>
+        <div class="stat-card"><div class="stat-label">Mes más caro</div><div class="stat-val" style="font-size:14px">${mesMaxGasto.egresos>0?mesMaxGasto.label:'-'}</div></div>
+      </div>
+
+      <!-- Gráfico barras mensual -->
+      <div class="chart-wrap">
+        <div class="chart-title">📈 Ingresos vs Egresos — ${_añoSel}</div>
+        <div style="display:flex;gap:3px;margin-bottom:8px;">
+          <span style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text2)"><span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block"></span>Ingresos</span>
+          <span style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text2);margin-left:8px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--red);display:inline-block"></span>Egresos</span>
+        </div>
+        <div style="display:flex;gap:2px;align-items:flex-end;height:100px;">
+          ${meses.map(d => {
+            const hI = maxI > 0 ? Math.max(2, Math.round((d.ingresos/maxI)*88)) : 2;
+            const hE = maxE > 0 ? Math.max(2, Math.round((d.egresos/maxE)*88)) : 2;
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;justify-content:flex-end;height:100%;">
+              <div style="width:100%;display:flex;gap:1px;align-items:flex-end;flex:1;">
+                <div style="flex:1;height:${hI}px;background:var(--green);border-radius:2px 2px 0 0;opacity:0.8"></div>
+                <div style="flex:1;height:${hE}px;background:var(--red);border-radius:2px 2px 0 0;opacity:0.8"></div>
+              </div>
+              <div style="font-size:9px;color:var(--text3)">${d.label}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Comparativo mensual egresos -->
+      <div class="chart-wrap">
+        <div class="chart-title">📊 Egresos por mes</div>
+        ${meses.filter(d => d.egresos > 0).map(d => {
+          const pct = maxE > 0 ? Math.round((d.egresos/maxE)*100) : 0;
+          const esMesActual = d.mes === new Date().getMonth() && _añoSel === new Date().getFullYear();
+          return `<div class="comp-row">
+            <div class="comp-mes" style="color:${esMesActual?'var(--text)':'var(--text2)'};font-weight:${esMesActual?'600':'400'}">${d.label}</div>
+            <div class="comp-bar-wrap"><div class="comp-bar" style="width:${pct}%;background:${esMesActual?'var(--red)':'var(--bg3)'}"></div></div>
+            <div class="comp-val" style="color:${esMesActual?'var(--red)':'var(--text2)'}">${Parser.formatCOP(d.egresos)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      ${catOrdenadas.length ? `
+        ${buildPastelSVG(catOrdenadas, totalCat)}
+        ${buildSeccionCategorias(catOrdenadas, totalCat, `${_añoSel}`)}
+      ` : ''}
+    `;
+  }
+
+  // ── GRÁFICO DE PASTEL SVG ─────────────────────────────────────
+  function buildPastelSVG(catOrdenadas, total) {
+    if (!catOrdenadas.length || total === 0) return '';
+    const size = 200, cx = 100, cy = 100, r = 80, ri = 42; // donut
+    const cats = Parser.getCategoriasMerged();
+
+    // Calcular arcos
+    let anguloAcum = -Math.PI / 2; // empezar desde arriba
+    const sectores = catOrdenadas.slice(0, 10).map(([slug, monto], i) => {
+      const pct = monto / total;
+      const anguloInicio = anguloAcum;
+      const anguloFin    = anguloAcum + pct * 2 * Math.PI;
+      anguloAcum = anguloFin;
+      const activo = _catPasteActiva === slug;
+      const r2 = activo ? r + 8 : r;
+
+      // Puntos del arco exterior
+      const x1 = cx + r2 * Math.cos(anguloInicio);
+      const y1 = cy + r2 * Math.sin(anguloInicio);
+      const x2 = cx + r2 * Math.cos(anguloFin);
+      const y2 = cy + r2 * Math.sin(anguloFin);
+      // Puntos del arco interior (donut)
+      const x3 = cx + ri * Math.cos(anguloFin);
+      const y3 = cy + ri * Math.sin(anguloFin);
+      const x4 = cx + ri * Math.cos(anguloInicio);
+      const y4 = cy + ri * Math.sin(anguloInicio);
+
+      const largeArc = pct > 0.5 ? 1 : 0;
+      const path = `M ${x1} ${y1} A ${r2} ${r2} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${ri} ${ri} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+      return { slug, monto, pct, path, color: COLORES[i % COLORES.length], activo };
+    });
+
+    // Centro: mostrar info de la categoría activa o el total
+    const infoC = _catPasteActiva
+      ? (() => {
+          const s = sectores.find(s => s.slug === _catPasteActiva);
+          const info = cats[_catPasteActiva] || Parser.CATEGORIAS.otros;
+          return s ? `<text x="${cx}" y="${cy-10}" text-anchor="middle" font-size="20" dominant-baseline="middle">${info.emoji}</text>
+            <text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="10" fill="var(--text2)" dominant-baseline="middle">${Parser.formatCOP(s.monto, true)}</text>
+            <text x="${cx}" y="${cy+24}" text-anchor="middle" font-size="9" fill="var(--text3)" dominant-baseline="middle">${Math.round(s.pct*100)}%</text>` : '';
+        })()
+      : `<text x="${cx}" y="${cy-8}" text-anchor="middle" font-size="10" fill="var(--text3)" dominant-baseline="middle">Total</text>
+         <text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="12" font-weight="bold" fill="var(--text)" dominant-baseline="middle">${Parser.formatCOP(total, true)}</text>`;
+
+    return `
+      <div class="chart-wrap">
+        <div class="chart-title">🥧 Distribución de egresos <span style="font-size:11px;color:var(--text3);font-weight:400">Toca para ver detalle</span></div>
+        <div class="pastel-container">
+          <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="pastel-svg" id="pastel-svg">
+            ${sectores.map(s => `
+              <path d="${s.path}" fill="${s.color}" opacity="${_catPasteActiva && !s.activo ? '0.4' : '1'}"
+                class="pastel-sector" data-slug="${s.slug}"
+                style="cursor:pointer;transition:opacity 0.2s;"/>
+            `).join('')}
+            ${infoC}
+          </svg>
+          <div class="pastel-leyenda">
+            ${sectores.map(s => {
+              const info = cats[s.slug] || Parser.CATEGORIAS.otros;
+              return `<div class="pastel-ley-item ${_catPasteActiva===s.slug?'activo':''}" data-slug="${s.slug}">
+                <span class="pastel-ley-dot" style="background:${s.color}"></span>
+                <span class="pastel-ley-nombre">${info.emoji} ${info.nombre || s.slug}</span>
+                <span class="pastel-ley-pct">${Math.round(s.pct*100)}%</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindPastel() {
+    document.querySelectorAll('.pastel-sector, .pastel-ley-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const slug = el.dataset.slug;
+        _catPasteActiva = _catPasteActiva === slug ? null : slug;
+        renderContenido();
+      });
+    });
+  }
+
+  // ── SECCIÓN CATEGORÍAS ────────────────────────────────────────
+  function buildSeccionCategorias(catOrdenadas, total, prefPeriodo) {
+    const cats = Parser.getCategoriasMerged();
+    return `
+      <div class="chart-wrap" id="cats-section">
+        <div class="chart-title">🏷️ Por categoría
+          <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px;">Toca para ver detalle</span>
+        </div>
+        <div class="cat-list">
+          ${catOrdenadas.map(([slug, monto], idx) => {
+            const info = cats[slug] || Parser.CATEGORIAS.otros;
+            const pct = total > 0 ? Math.round((monto/total)*100) : 0;
+            const color = COLORES[idx % COLORES.length];
+            const activo = _catPasteActiva === slug;
+            const presup = _presupuestos.find(p => p.categoriaSlug === slug);
+            const pctPresup = presup ? Math.min(100, Math.round((monto/presup.monto)*100)) : null;
+            const colorPresup = pctPresup === null ? null : pctPresup>=100?'var(--red)':pctPresup>=80?'var(--yellow)':'var(--green)';
+            return `
+              <div class="cat-item cat-item-tappable ${activo?'cat-activa':''}"
+                data-cat="${slug}" data-mes="${prefPeriodo}">
+                <div class="cat-header">
+                  <div class="cat-name" style="font-weight:${activo?700:500}">
+                    ${info.emoji} ${info.nombre || slug}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cat-monto">
+                      ${Parser.formatCOP(monto)}
+                      <span style="font-size:11px;color:${presup?colorPresup:'var(--text3)'}"> ${pct}%</span>
+                    </div>
+                    ${_tab !== 'semana' ? `
+                      <button class="btn-presupuesto-cat"
+                        data-cat="${slug}" data-mes="${prefPeriodo}"
+                        data-gasto="${monto}" data-nombre="${info.nombre||slug}">
+                        ${presup ? '📊' : '＋'}
+                      </button>` : ''}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </div>
+                </div>
+                <div class="cat-bar">
+                  <div class="cat-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+                ${presup ? `
+                  <div style="margin-top:5px;">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:3px;">
+                      <span>Presupuesto: ${Parser.formatCOP(presup.monto)}</span>
+                      <span style="color:${colorPresup}">${pctPresup>=100?'⚠️ Superado':`Falta ${Parser.formatCOP(presup.monto-monto)}`}</span>
+                    </div>
+                    <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+                      <div style="height:100%;width:${pctPresup}%;background:${colorPresup};border-radius:2px;"></div>
+                    </div>
+                  </div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
       </div>
     `;
   }
@@ -241,42 +480,45 @@ const EstadisticasView = (() => {
     document.querySelectorAll('.cat-item-tappable').forEach(el => {
       el.addEventListener('click', e => {
         if (e.target.closest('.btn-presupuesto-cat')) return;
-        mostrarDetalleCat(el.dataset.cat, el.dataset.mes);
+        const slug = el.dataset.cat;
+        const pref = el.dataset.mes;
+        mostrarDetalleCat(slug, pref);
       });
     });
 
     document.querySelectorAll('.btn-presupuesto-cat').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        PresupuestosView.abrir(
-          btn.dataset.cat,
-          btn.dataset.nombre,
-          btn.dataset.mes,
-          parseFloat(btn.dataset.gasto) || 0,
-          () => render()
-        );
+        PresupuestosView.abrir(btn.dataset.cat, btn.dataset.nombre,
+          btn.dataset.mes, parseFloat(btn.dataset.gasto)||0, renderContenido);
       });
     });
   }
 
-  function mostrarDetalleCat(catSlug, mesPref) {
+  function mostrarDetalleCat(catSlug, prefPeriodo) {
     const container = document.getElementById('view-container');
     const cats = Parser.getCategoriasMerged();
     const info = cats[catSlug] || Parser.CATEGORIAS.otros;
+    const cuentaLabels = { efectivo:'💵 Efectivo', tarjeta_debito:'💳 T. Débito', tarjeta_credito:'💳 T. Crédito', banco:'🏦 Banco' };
 
-    // Filtrar movimientos de esta categoría en este mes
-    const movs = _todosMovimientos
-      .filter(m => m.categoria === catSlug && m.fecha.startsWith(mesPref))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // Filtrar movimientos según el prefijo del período
+    const movs = _todos
+      .filter(m => m.categoria === catSlug && m.tipo === 'egreso' && m.fecha.startsWith(prefPeriodo))
+      .sort((a,b) => b.fecha.localeCompare(a.fecha));
 
-    const total = movs.reduce((s, m) => s + m.monto, 0);
-    const cuentaLabels = { efectivo: '💵 Efectivo', tarjeta_debito: '💳 T. Débito', tarjeta_credito: '💳 T. Crédito', banco: '🏦 Banco' };
-    const [año, mes] = mesPref.split('-');
-    const mesNombre = Parser.nombreMesLargo(parseInt(mes) - 1) + ' ' + año;
+    const total = movs.reduce((s,m) => s+m.monto, 0);
+
+    // Calcular label del período
+    let periodoLabel = prefPeriodo;
+    if (/^\d{4}-\d{2}$/.test(prefPeriodo)) {
+      const [y,m] = prefPeriodo.split('-');
+      periodoLabel = `${Parser.nombreMesLargo(parseInt(m)-1)} ${y}`;
+    } else if (/^\d{4}$/.test(prefPeriodo)) {
+      periodoLabel = prefPeriodo;
+    }
 
     container.innerHTML = `
       <div class="detalle-cat-wrap fade-in">
-        <!-- Header con botón volver -->
         <div class="detalle-cat-header">
           <button class="btn-volver" id="btn-volver-stats">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -285,64 +527,65 @@ const EstadisticasView = (() => {
             Estadísticas
           </button>
         </div>
-
-        <!-- Título de categoría -->
         <div class="detalle-cat-titulo">
           <span class="detalle-cat-emoji">${info.emoji}</span>
           <div>
             <div class="detalle-cat-nombre">${info.nombre || catSlug}</div>
-            <div class="detalle-cat-mes">${mesNombre}</div>
+            <div class="detalle-cat-mes">${periodoLabel}</div>
           </div>
         </div>
-
-        <!-- Resumen -->
         <div class="detalle-cat-resumen">
           <div class="detalle-resumen-item">
-            <div class="detalle-resumen-label">Total gastado</div>
+            <div class="detalle-resumen-label">Total</div>
             <div class="detalle-resumen-val text-red">${Parser.formatCOP(total)}</div>
           </div>
           <div class="detalle-resumen-sep"></div>
           <div class="detalle-resumen-item">
-            <div class="detalle-resumen-label">Movimientos</div>
+            <div class="detalle-resumen-label">Registros</div>
             <div class="detalle-resumen-val">${movs.length}</div>
           </div>
           <div class="detalle-resumen-sep"></div>
           <div class="detalle-resumen-item">
             <div class="detalle-resumen-label">Promedio</div>
-            <div class="detalle-resumen-val">${movs.length ? Parser.formatCOP(total / movs.length) : '$0'}</div>
+            <div class="detalle-resumen-val">${movs.length ? Parser.formatCOP(total/movs.length) : '$0'}</div>
           </div>
         </div>
-
-        <!-- Lista de movimientos -->
         ${movs.length ? `
           <div class="section-title" style="margin-top:4px;">Movimientos</div>
           <div class="card" style="padding:0;overflow:hidden;margin:0 16px 16px;">
             ${movs.map(m => `
               <div class="mov-item">
-                <div class="mov-icon" style="background:rgba(239,68,68,0.12); font-size:18px;">
-                  ${info.emoji}
-                </div>
+                <div class="mov-icon" style="background:rgba(239,68,68,0.12)">${info.emoji}</div>
                 <div class="mov-info">
                   <div class="mov-desc">${m.descripcion || info.nombre || catSlug}</div>
-                  <div class="mov-meta">${Parser.fechaLegible(m.fecha)} · ${cuentaLabels[m.cuenta] || m.cuenta}</div>
+                  <div class="mov-meta">${Parser.fechaLegible(m.fecha)} · ${cuentaLabels[m.cuenta]||m.cuenta}</div>
                 </div>
                 <div class="mov-monto egreso">-${Parser.formatCOP(m.monto)}</div>
-              </div>
-            `).join('')}
-          </div>
-        ` : `
+              </div>`).join('')}
+          </div>` : `
           <div class="empty-state" style="padding:40px;">
-            <div class="empty-icon">${info.emoji}</div>
-            <p>Sin movimientos en ${mesNombre}</p>
-          </div>
-        `}
+            <div class="empty-icon">${info.emoji}</div><p>Sin movimientos en este período</p>
+          </div>`}
       </div>
     `;
 
-    document.getElementById('btn-volver-stats').addEventListener('click', () => {
-      container.innerHTML = buildEstadisticas(_todosMovimientos);
-      bindCatItems();
-    });
+    document.getElementById('btn-volver-stats').addEventListener('click', () => pintarVista(container));
+  }
+
+  // ── UTILS ─────────────────────────────────────────────────────
+  function calcularCategorias(egresosArr) {
+    const porCat = {};
+    for (const m of egresosArr) {
+      porCat[m.categoria] = (porCat[m.categoria] || 0) + m.monto;
+    }
+    const totalCat = Object.values(porCat).reduce((s,v) => s+v, 0);
+    return { porCat, totalCat };
+  }
+
+  function getAñosDisponibles() {
+    const años = new Set(_todos.map(m => parseInt(m.fecha.slice(0,4))));
+    años.add(new Date().getFullYear());
+    return [...años].sort((a,b) => b-a);
   }
 
   return { render };
