@@ -185,7 +185,30 @@ const App = (() => {
 
   function activarModoMulti(productos) {
     _modoMulti = true;
-    _productosDetectados = productos.map(p => ({ ...p, monto: 0 }));
+
+    // Preservar categorías y montos que el usuario ya corrigió manualmente.
+    // Si un producto (mismo texto) ya estaba en _productosDetectados, conservar
+    // su categoría y monto anteriores.
+    const anteriorPorTexto = {};
+    for (const p of _productosDetectados) {
+      anteriorPorTexto[p.texto] = p;
+    }
+
+    _productosDetectados = productos.map(p => {
+      const anterior = anteriorPorTexto[p.texto];
+      if (anterior) {
+        // Este producto ya existía — preservar lo que el usuario cambió
+        return {
+          ...p,
+          categoria: anterior.categoria,
+          emoji:     anterior.emoji,
+          nombre:    anterior.nombre,
+          monto:     anterior.monto || 0
+        };
+      }
+      return { ...p, monto: 0 };
+    });
+
     ocultarCatDetectada();
 
     // Bloquear el campo de monto — se calcula automático
