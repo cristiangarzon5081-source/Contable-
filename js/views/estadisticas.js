@@ -302,6 +302,7 @@ const EstadisticasView = (() => {
       ${catOrdenadas.length ? `
         ${buildPastelSVG(catOrdenadas, totalCat)}
         ${buildSeccionCategorias(catOrdenadas, totalCat, pref)}
+        ${buildComparativaCategorias(pref)}
       ` : `<div class="empty-state" style="padding:40px 0;"><div class="empty-icon">${_tipoVista==='egresos'?'💸':'💰'}</div><p>Sin ${labelPrincipal.toLowerCase()} en este mes</p></div>`}
     `;
   }
@@ -456,6 +457,82 @@ const EstadisticasView = (() => {
         renderContenido();
       });
     });
+  }
+
+  // ── COMPARATIVA DE CATEGORÍAS ENTRE MESES ────────────────────
+  function buildComparativaCategorias(prefMesActual) {
+    const tipo = _tipoVista === 'egresos' ? 'egreso' : 'ingreso';
+    const [año, mes] = prefMesActual.split('-').map(Number);
+
+    // Generar los 3 meses anteriores + el actual
+    const periodos = [];
+    for (let i = 3; i >= 0; i--) {
+      let m = mes - 1 - i; // 0-based
+      let a = año;
+      while (m < 0) { m += 12; a--; }
+      const pref = `${a}-${String(m + 1).padStart(2, '0')}`;
+      periodos.push({ pref, label: Parser.nombreMes(m), esActual: i === 0 });
+    }
+
+    // Para cada período, calcular por categoría
+    const todasCats = new Set();
+    const datosPorPeriodo = periodos.map(p => {
+      const movs = _todos.filter(m => m.tipo === tipo && m.fecha.startsWith(p.pref));
+      const porCat = {};
+      for (const m of movs) {
+        porCat[m.categoria] = (porCat[m.categoria] || 0) + m.monto;
+        todasCats.add(m.categoria);
+      }
+      return { ...p, porCat };
+    });
+
+    if (!todasCats.size) return '';
+
+    // Top 5 categorías del mes actual por monto
+    const mesActualDatos = datosPorPeriodo[datosPorPeriodo.length - 1];
+    const topCats = Object.entries(mesActualDatos.porCat)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([slug]) => slug);
+
+    if (!topCats.length) return '';
+
+    const cats = Parser.getCategoriasMerged();
+    const maxGlobal = Math.max(
+      ...datosPorPeriodo.flatMap(p => topCats.map(slug => p.porCat[slug] || 0)), 1
+    );
+
+    return `
+      <div class="chart-wrap">
+        <div class="chart-title">📅 Comparativa por categoría — últimos 4 meses</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          ${periodos.map(p => `
+            <span style="font-size:11px;display:flex;align-items:center;gap:4px;color:${p.esActual?'var(--text)':'var(--text3)'}">
+              <span style="width:8px;height:8px;border-radius:50%;background:${p.esActual?'var(--accent)':'var(--bg3)'};display:inline-block;border:1px solid var(--border)"></span>
+              ${p.label}${p.esActual ? ' (actual)' : ''}
+            </span>`).join('')}
+        </div>
+        ${topCats.map(slug => {
+          const info = cats[slug] || Parser.CATEGORIAS.otros;
+          return `
+            <div class="comp-cat-row">
+              <div class="comp-cat-label">${info.emoji} ${info.nombre || slug}</div>
+              <div class="comp-cat-barras">
+                ${datosPorPeriodo.map((p, i) => {
+                  const monto = p.porCat[slug] || 0;
+                  const w = maxGlobal > 0 ? Math.max(monto > 0 ? 2 : 0, Math.round((monto / maxGlobal) * 100)) : 0;
+                  const opacity = p.esActual ? 1 : 0.4 + i * 0.15;
+                  return `
+                    <div class="comp-cat-barra-row" title="${p.label}: ${Parser.formatCOP(monto)}">
+                      <div class="comp-cat-barra" style="width:${w}%;opacity:${opacity};background:${_tipoVista==='egresos'?'var(--red)':'var(--green)'}"></div>
+                      <span class="comp-cat-monto">${monto > 0 ? Parser.formatCOP(monto, true) : '—'}</span>
+                    </div>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    `;
   }
 
   // ── SECCIÓN CATEGORÍAS ────────────────────────────────────────

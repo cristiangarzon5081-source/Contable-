@@ -13,13 +13,14 @@ const DB = (() => {
     prestamos: 'prestamos',
     abonos: 'abonos',
     categorias: 'categorias',
-    presupuestos: 'presupuestos'
+    presupuestos: 'presupuestos',
+    metas: 'metas'
   };
 
   function open() {
     return new Promise((resolve, reject) => {
       if (db) { resolve(db); return; }
-      const req = indexedDB.open(DB_NAME, 3); // versión 3
+      const req = indexedDB.open(DB_NAME, 4);
 
       req.onupgradeneeded = e => {
         const d = e.target.result;
@@ -40,10 +41,12 @@ const DB = (() => {
           const s = d.createObjectStore(STORES.categorias, { keyPath: 'slug' });
           s.createIndex('tipo', 'tipo');
         }
-        // Presupuestos: { slug (categoria), monto, mes ('2026-11' o 'todos') }
         if (!d.objectStoreNames.contains(STORES.presupuestos)) {
           d.createObjectStore(STORES.presupuestos, { keyPath: 'id' });
-          // id = slug + '_' + mes  ej: 'alimentacion_2026-11' o 'alimentacion_todos'
+        }
+        // Metas de ahorro: { id (autoincrement), nombre, montoMeta, fechaLimite, emoji, activa }
+        if (!d.objectStoreNames.contains(STORES.metas)) {
+          d.createObjectStore(STORES.metas, { keyPath: 'id', autoIncrement: true });
         }
       };
 
@@ -262,11 +265,56 @@ const DB = (() => {
     return promisify(tx(STORES.presupuestos, 'readwrite').delete(`${categoriaSlug}_${mes}`));
   }
 
+  // ── METAS DE AHORRO ───────────────────────────────────────────
+  async function guardarMeta(data) {
+    await open();
+    const meta = {
+      nombre: data.nombre,
+      emoji: data.emoji || '🎯',
+      montoMeta: data.montoMeta,
+      montoAhorrado: data.montoAhorrado || 0,
+      fechaLimite: data.fechaLimite || null,
+      activa: data.activa !== false,
+      creadoEn: data.creadoEn || Date.now()
+    };
+    if (data.id) { meta.id = data.id; return promisify(tx(STORES.metas, 'readwrite').put(meta)); }
+    return promisify(tx(STORES.metas, 'readwrite').add(meta));
+  }
+
+  async function obtenerMetas() {
+    await open();
+    return new Promise((resolve, reject) => {
+      const req = tx(STORES.metas).getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function actualizarMeta(id, data) {
+    await open();
+    const store = tx(STORES.metas, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const req = store.get(id);
+      req.onsuccess = e => {
+        const r2 = store.put({ ...e.target.result, ...data });
+        r2.onsuccess = () => resolve();
+        r2.onerror = err => reject(err);
+      };
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+
+  async function eliminarMeta(id) {
+    await open();
+    return promisify(tx(STORES.metas, 'readwrite').delete(id));
+  }
+
   return {
     agregarMovimiento, obtenerMovimientos, eliminarMovimiento, editarMovimiento,
     agregarPrestamo, obtenerPrestamos, actualizarPrestamo, eliminarPrestamo,
     agregarAbono, obtenerAbonos, obtenerTodosAbonos,
     guardarCategoria, obtenerCategorias, eliminarCategoria,
-    guardarPresupuesto, obtenerPresupuestos, eliminarPresupuesto
+    guardarPresupuesto, obtenerPresupuestos, eliminarPresupuesto,
+    guardarMeta, obtenerMetas, actualizarMeta, eliminarMeta
   };
 })();

@@ -20,7 +20,8 @@ const App = (() => {
     historial:   HistorialView,
     prestamos:   PrestamosView,
     estadisticas: EstadisticasView,
-    categorias:  CategoriasView
+    categorias:  CategoriasView,
+    mas:         MasView
   };
 
   function init() {

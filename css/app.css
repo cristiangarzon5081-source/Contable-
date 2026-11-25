@@ -1103,3 +1103,113 @@ textarea.input-desc {
 }
 .stats-tipo-btn.active.egreso  { background: rgba(239,68,68,0.15);  color: #f87171; }
 .stats-tipo-btn.active.ingreso { background: rgba(16,185,129,0.15); color: #34d399; }
+
+/* ── VISTA MÁS ─────────────────────────────────────────────────── */
+.mas-wrap { padding: 12px 0 24px; }
+.mas-tabs {
+  display: flex; margin: 0 16px 14px;
+  background: var(--bg2); border-radius: 10px; padding: 3px;
+}
+.mas-tab {
+  flex: 1; padding: 8px; border-radius: 8px;
+  border: none; background: transparent;
+  color: var(--text2); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.mas-tab.active { background: var(--accent); color: white; }
+
+/* Metas */
+.metas-lista { padding: 0 16px; }
+.meta-card {
+  background: var(--card); border-radius: 14px;
+  padding: 14px 16px; margin-bottom: 12px;
+}
+.meta-card.meta-cumplida { opacity: 0.7; }
+.meta-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.meta-emoji { font-size: 28px; flex-shrink: 0; }
+.meta-info { flex: 1; min-width: 0; }
+.meta-nombre { font-size: 16px; font-weight: 700; }
+.meta-fecha { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.meta-acciones { display: flex; gap: 6px; }
+.meta-btn-abono {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: rgba(16,185,129,0.15); border: none; color: #34d399;
+  font-size: 20px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.meta-btn-edit, .meta-btn-del {
+  width: 32px; height: 32px; border-radius: 8px; border: none;
+  font-size: 14px; cursor: pointer;
+}
+.meta-btn-edit { background: rgba(99,102,241,0.12); }
+.meta-btn-del  { background: rgba(239,68,68,0.1); }
+.meta-montos {
+  display: flex; align-items: baseline; gap: 4px;
+  margin-bottom: 8px; font-size: 14px;
+}
+.meta-ahorrado { font-size: 20px; font-weight: 800; }
+.meta-de { color: var(--text3); font-size: 13px; }
+.meta-total { font-size: 15px; font-weight: 600; color: var(--text2); }
+.meta-pct { margin-left: auto; font-size: 15px; font-weight: 700; }
+.meta-barra-wrap {
+  height: 8px; background: var(--bg3); border-radius: 4px;
+  overflow: hidden; margin-bottom: 6px;
+}
+.meta-barra-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.meta-falta { font-size: 12px; color: var(--text3); }
+.btn-nueva-meta {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin: 4px 16px 0; width: calc(100% - 32px); padding: 13px;
+  border-radius: 13px;
+  background: rgba(99,102,241,0.12); border: 1.5px dashed rgba(99,102,241,0.4);
+  color: var(--accent2); font-size: 15px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+
+/* Cuentas */
+.cuentas-total-card {
+  margin: 0 16px 16px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-radius: var(--radius); padding: 20px; text-align: center;
+}
+.cuentas-total-label { font-size: 13px; color: rgba(255,255,255,0.75); margin-bottom: 6px; }
+.cuentas-total-val { font-size: 32px; font-weight: 800; color: white; }
+.cuentas-total-movs { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 6px; }
+
+.cuentas-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; padding: 0 16px; margin-bottom: 14px;
+}
+.cuenta-card {
+  background: var(--card); border-radius: 14px; padding: 14px;
+}
+.cuenta-emoji { font-size: 24px; margin-bottom: 6px; }
+.cuenta-label { font-size: 12px; color: var(--text3); margin-bottom: 4px; }
+.cuenta-saldo { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+.cuenta-movs { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+.cuenta-barra-wrap { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.cuenta-barra-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+.cuentas-nota {
+  margin: 0 16px; padding: 12px; border-radius: 10px;
+  background: rgba(99,102,241,0.08); font-size: 12px;
+  color: var(--text3); line-height: 1.5;
+}
+
+/* Comparativa categorías */
+.comp-cat-row {
+  margin-bottom: 14px;
+}
+.comp-cat-label {
+  font-size: 13px; font-weight: 600; margin-bottom: 5px;
+}
+.comp-cat-barras { display: flex; flex-direction: column; gap: 3px; }
+.comp-cat-barra-row {
+  display: flex; align-items: center; gap: 8px; height: 16px;
+}
+.comp-cat-barra {
+  height: 10px; border-radius: 3px; min-width: 2px;
+  transition: width 0.4s ease; flex-shrink: 0;
+}
+.comp-cat-monto {
+  font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0;
+}
