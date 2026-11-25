@@ -191,51 +191,43 @@ const App = (() => {
       </svg>Guardar`;
   }
 
-  function activarModoMulti(productos) {
+  function activarModoMulti(productosNuevos) {
     _modoMulti = true;
 
-    // ── PRESERVAR CORRECCIONES MANUALES ──────────────────────────
-    // Caso 1: venía de modo multi → buscar por texto en _productosDetectados anterior
-    const anteriorPorTexto = {};
+    // ── FUSIONAR: preservar todo lo que el usuario ya corrigió ────
+    // Construir mapa de lo que ya existía (por texto normalizado)
+    const anteriorPorTextoNorm = {};
     for (const p of _productosDetectados) {
-      anteriorPorTexto[p.texto] = p;
+      anteriorPorTextoNorm[Parser.normalizar(p.texto)] = p;
     }
 
-    // Caso 2: venía de modo simple con un override manual (_simpleCatOverride)
-    // El texto del producto simple era _simpleTextoAnterior.
-    // Cuando el parser analiza ese texto completo ("compré 3 afeitadoras"),
-    // lo convierte en un fragmento ("3 afeitadoras" o "afeitadoras").
-    // Necesitamos encontrar cuál de los nuevos productos corresponde a ese texto.
+    // Aplicar override de modo simple si existe
     let overrideSimpleAplicado = false;
 
-    _productosDetectados = productos.map(p => {
-      // Prioridad 1: ya existía en modo multi anterior con la misma descripción
-      const anterior = anteriorPorTexto[p.texto];
-      if (anterior) {
-        return { ...p, categoria: anterior.categoria, emoji: anterior.emoji, nombre: anterior.nombre, monto: anterior.monto || 0 };
+    // Construir la lista final: para cada producto nuevo del parser,
+    // usar la versión corregida si ya existía, o la automática si es nuevo
+    const productosFinal = productosNuevos.map(p => {
+      const norm = Parser.normalizar(p.texto);
+
+      // ¿Ya existía con el mismo texto? → preservar todo
+      if (anteriorPorTextoNorm[norm]) {
+        return { ...anteriorPorTextoNorm[norm] };
       }
 
-      // Prioridad 2: coincide con el texto que tenía cuando el usuario corrigió en modo simple
+      // ¿Coincide con el texto del override de modo simple?
       if (!overrideSimpleAplicado && _simpleCatOverride) {
-        const textoNorm = Parser.normalizar(p.texto);
         const anteriorNorm = Parser.normalizar(_simpleTextoAnterior);
-        const coincide = anteriorNorm.includes(textoNorm) || textoNorm.includes(anteriorNorm);
-        if (coincide) {
+        if (anteriorNorm.includes(norm) || norm.includes(anteriorNorm)) {
           overrideSimpleAplicado = true;
-          return {
-            ...p,
-            categoria: _simpleCatOverride.slug,
-            emoji:     _simpleCatOverride.emoji,
-            nombre:    _simpleCatOverride.nombre,
-            monto:     0
-          };
+          return { ...p, categoria: _simpleCatOverride.slug, emoji: _simpleCatOverride.emoji, nombre: _simpleCatOverride.nombre, monto: 0 };
         }
       }
 
+      // Producto nuevo — usar categoría automática del parser
       return { ...p, monto: 0 };
     });
 
-    // Limpiar el override simple — ya fue aplicado (o no aplica)
+    _productosDetectados = productosFinal;
     _simpleCatOverride = null;
     _simpleTextoAnterior = '';
 
@@ -248,29 +240,20 @@ const App = (() => {
     document.getElementById('input-monto').readOnly = true;
     document.getElementById('monto-auto-label').classList.remove('hidden');
 
-    // Construir el panel
+    // Construir el panel usando _productosDetectados (ya con correcciones),
+    // NO con productosNuevos del parser
     const panel = document.getElementById('multi-panel');
     panel.innerHTML = `
       <div class="multi-header">
-        <span class="multi-titulo">📦 ${productos.length} productos detectados — agrega el valor de cada uno</span>
+        <span class="multi-titulo">📦 ${_productosDetectados.length} productos — agrega el valor de cada uno</span>
       </div>
       <div id="multi-lista">
-        ${productos.map((p, i) => buildMultiItem(p, i)).join('')}
+        ${_productosDetectados.map((p, i) => buildMultiItem(p, i)).join('')}
       </div>
     `;
     panel.classList.remove('hidden');
 
     bindMultiItemEvents();
-
-    // Actualizar visualmente los ítems que recibieron override (categoría preservada)
-    // El HTML se construyó con los datos del parser, pero _productosDetectados ya tiene
-    // las categorías corregidas — hay que sincronizar el DOM con el estado real.
-    _productosDetectados.forEach((p, i) => {
-      const item = panel.querySelector(`.multi-item[data-index="${i}"]`);
-      if (!item) return;
-      item.querySelector('.multi-item-emoji').textContent = p.emoji;
-      item.querySelector('.multi-item-cat-btn').textContent = `${p.nombre} ✎`;
-    });
 
     // Cambiar botón
     document.getElementById('btn-guardar').innerHTML = `
