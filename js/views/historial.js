@@ -12,11 +12,19 @@ const HistorialView = (() => {
     const container = document.getElementById('view-container');
     container.innerHTML = `
       <div class="historial-wrap fade-in">
-        <div class="search-bar">
-          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" class="search-input" id="search-input" placeholder="Buscar movimiento..." value="${busqueda}" />
+        <div style="display:flex;gap:8px;padding:0 16px;margin-bottom:12px;align-items:center;">
+          <div class="search-bar" style="flex:1;margin:0;">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" id="search-input" placeholder="Buscar movimiento..." value="${busqueda}" />
+          </div>
+          <button id="btn-exportar" class="btn-exportar-hist" title="Exportar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          </button>
         </div>
         <div class="filtros-row" id="filtros-tipo">
           ${['todos','ingreso','egreso'].map(t =>
@@ -188,6 +196,11 @@ const HistorialView = (() => {
         busqueda = e.target.value;
         timeout = setTimeout(cargarMovimientos, 300);
       });
+    }
+
+    const btnExportar = document.getElementById('btn-exportar');
+    if (btnExportar) {
+      btnExportar.addEventListener('click', () => ExportarView.abrir());
     }
 
     document.querySelectorAll('[data-tipo]').forEach(btn => {

@@ -914,3 +914,57 @@ textarea.input-desc {
 }
 .rs-cat-bar { height: 100%; border-radius: 2px; transition: width 0.5s; }
 .rs-cat-monto { font-size: 13px; font-weight: 600; flex-shrink: 0; color: var(--text2); }
+
+/* ── EXPORTAR ──────────────────────────────────────────────────── */
+.btn-exportar-hist {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text2); display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: all 0.15s;
+}
+.btn-exportar-hist:active { background: var(--bg3); }
+
+.export-check-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px; color: var(--text); cursor: pointer;
+}
+.export-check-row input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer;
+}
+
+.export-preview {
+  margin-bottom: 4px;
+}
+.export-preview-info {
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);
+  font-size: 13px; color: var(--accent2);
+}
+
+.btn-export {
+  flex: 1; padding: 13px 10px; border-radius: 13px;
+  background: var(--accent); border: none; color: white;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 7px; font-family: inherit; transition: opacity 0.2s;
+}
+.btn-export:active { opacity: 0.8; }
+.btn-export-sec {
+  background: var(--bg3); color: var(--text2);
+}
+
+/* Toast de confirmación */
+.contable-toast {
+  position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg2); color: var(--text);
+  padding: 10px 20px; border-radius: 20px;
+  font-size: 14px; font-weight: 500;
+  border: 1px solid var(--border);
+  opacity: 0; transition: all 0.3s; pointer-events: none;
+  white-space: nowrap; z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.contable-toast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}

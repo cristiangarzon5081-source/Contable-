@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contable-v11';
+const CACHE_NAME = 'contable-v12';
 const ASSETS = [
   '/',
   '/index.html',
