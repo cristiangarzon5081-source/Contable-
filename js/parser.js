@@ -84,9 +84,13 @@ const CATEGORIAS = {
       'papel higienico','toallas humedas','servilletas','pañitos','cotton','hisopos',
       'rasuradora','maquina de afeitar','crema de afeitar','after shave',
       'protector solar','bloqueador','pañales','toallas sanitarias','tampones',
-      // Marcas comunes
+      // Marcas comunes de aseo personal
       'dove','head shoulders','pantene','loreal cabello','garnier','nivea','johnson',
       'old spice','axe','gillette','venus','always','nosotras','stayfree',
+      'listerine','colgate','oral b','sensodyne','reach','aquafresh',
+      'rexona','secret','fa','sanex','palmolive','protex','lifebuoy',
+      'head and shoulders','clear','tresemme','sedal','elvive',
+      'neutrogena','cetaphil','la roche','vichy','eucerin',
       // Tiendas
       'drogueria aseo','tienda aseo','aseo personal',
       // Verbos

@@ -295,15 +295,24 @@ const App = (() => {
       clearTimeout(catTimeout);
       const texto = inputDesc.value.trim();
       if (!texto) { ocultarCatDetectada(); resetMulti(); return; }
-      // 800ms de espera para no interrumpir mientras escribe
+
       catTimeout = setTimeout(() => {
+        // Si el usuario ya corrigió la categoría manualmente, no sobreescribir
+        const catEl = document.getElementById('cat-detectada');
+        const yaCorregida = catEl && catEl.dataset.catOverride && catEl.dataset.catOverride !== '';
+
         if (Parser.esCompraMultiple(texto)) {
+          // En modo multi siempre re-analizamos (el usuario puede corregir cada ítem)
           const productos = Parser.analizarProductos(texto);
           activarModoMulti(productos);
         } else {
           resetMulti();
-          const cat = Parser.categorizarAuto(texto);
-          mostrarCatDetectada(cat);
+          // Solo actualizar el indicador si el usuario NO lo ha corregido manualmente
+          if (!yaCorregida) {
+            const cat = Parser.categorizarAuto(texto);
+            mostrarCatDetectada(cat);
+          }
+          // Si ya lo corrigió, dejamos el indicador como está
         }
       }, 800);
     });
