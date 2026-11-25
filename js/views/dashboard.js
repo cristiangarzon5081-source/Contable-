@@ -82,6 +82,9 @@ const DashboardView = (() => {
         <!-- Proyección del mes -->
         ${periodoActual === 'mes' ? buildProyeccion(proy) : ''}
 
+        <!-- Resumen semanal inteligente -->
+        ${periodoActual === 'semana' ? buildResumenSemanal(movimientos) : ''}
+
         <!-- Alertas -->
         ${alertas.length ? `
           <div class="section-title">Alertas</div>
@@ -108,6 +111,157 @@ const DashboardView = (() => {
           </div>
         `}
         <div class="section-sep"></div>
+      </div>
+    `;
+  }
+
+  function buildResumenSemanal(movimientos) {
+    const hoy = new Date();
+    const diaSemana = hoy.getDay(); // 0=dom
+    // Lunes de esta semana
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+    lunes.setHours(0,0,0,0);
+    // Lunes de la semana pasada
+    const lunesPasado = new Date(lunes);
+    lunesPasado.setDate(lunes.getDate() - 7);
+    const domingoPassado = new Date(lunes);
+    domingoPassado.setDate(lunes.getDate() - 1);
+
+    const fechaHoy = hoy.toISOString().split('T')[0];
+    const fechaLunes = lunes.toISOString().split('T')[0];
+    const fechaLunesPasado = lunesPasado.toISOString().split('T')[0];
+    const fechaDomingoPassado = domingoPassado.toISOString().split('T')[0];
+
+    // Movimientos de esta semana y la pasada
+    const estaSemana = movimientos.filter(m => m.fecha >= fechaLunes && m.fecha <= fechaHoy);
+    const semanaPassada = movimientos.filter(m => m.fecha >= fechaLunesPasado && m.fecha <= fechaDomingoPassado);
+
+    const egresosEsta = estaSemana.filter(m => m.tipo === 'egreso').reduce((s,m) => s+m.monto, 0);
+    const ingresosEsta = estaSemana.filter(m => m.tipo === 'ingreso').reduce((s,m) => s+m.monto, 0);
+    const egresosPasada = semanaPassada.filter(m => m.tipo === 'egreso').reduce((s,m) => s+m.monto, 0);
+
+    // Comparativa con semana anterior
+    const diff = egresosEsta - egresosPasada;
+    const pctDiff = egresosPasada > 0 ? Math.round(Math.abs(diff / egresosPasada) * 100) : null;
+    const mejoro = diff < 0;
+
+    // Día con más gastos esta semana
+    const porDia = {};
+    const diasNombre = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    for (const m of estaSemana.filter(m => m.tipo === 'egreso')) {
+      const d = new Date(m.fecha + 'T12:00:00');
+      const key = m.fecha;
+      if (!porDia[key]) porDia[key] = { total: 0, nombre: diasNombre[d.getDay()], fecha: m.fecha };
+      porDia[key].total += m.monto;
+    }
+    const diasOrdenados = Object.values(porDia).sort((a,b) => b.total - a.total);
+    const diaMasCaro = diasOrdenados[0];
+
+    // Top 3 categorías esta semana
+    const porCat = {};
+    for (const m of estaSemana.filter(m => m.tipo === 'egreso')) {
+      porCat[m.categoria] = (porCat[m.categoria] || 0) + m.monto;
+    }
+    const topCats = Object.entries(porCat).sort((a,b) => b[1]-a[1]).slice(0,3);
+
+    // Promedio diario esta semana
+    const diasTranscurridos = Math.max(1, diaSemana === 0 ? 7 : diaSemana);
+    const promDiario = egresosEsta / diasTranscurridos;
+
+    // Días restantes de la semana
+    const diasRestantes = diaSemana === 0 ? 0 : 7 - diaSemana;
+
+    const cats = Parser.getCategoriasMerged();
+
+    return `
+      <div class="resumen-semanal">
+        <div class="rs-header">
+          <span class="rs-titulo">📅 Resumen de la semana</span>
+          <span class="rs-fecha">${Parser.fechaLegible(fechaLunes)} – ${Parser.fechaLegible(fechaHoy)}</span>
+        </div>
+
+        <!-- Totales -->
+        <div class="rs-totales">
+          <div class="rs-total-item">
+            <div class="rs-total-label">Egresos</div>
+            <div class="rs-total-val text-red">${Parser.formatCOP(egresosEsta)}</div>
+          </div>
+          <div class="rs-sep"></div>
+          <div class="rs-total-item">
+            <div class="rs-total-label">Ingresos</div>
+            <div class="rs-total-val text-green">${Parser.formatCOP(ingresosEsta)}</div>
+          </div>
+          <div class="rs-sep"></div>
+          <div class="rs-total-item">
+            <div class="rs-total-label">Prom/día</div>
+            <div class="rs-total-val">${Parser.formatCOP(promDiario)}</div>
+          </div>
+        </div>
+
+        <!-- Comparativa semana anterior -->
+        ${egresosPasada > 0 ? `
+          <div class="rs-comparativa ${mejoro ? 'mejor' : 'peor'}">
+            <span class="rs-comp-icono">${mejoro ? '📉' : '📈'}</span>
+            <span class="rs-comp-texto">
+              ${mejoro
+                ? `Gastaste ${Parser.formatCOP(Math.abs(diff))} <strong>menos</strong> que la semana pasada`
+                : `Gastaste ${Parser.formatCOP(Math.abs(diff))} <strong>más</strong> que la semana pasada`
+              }
+              ${pctDiff !== null ? `<span class="rs-comp-pct">(${pctDiff}%)</span>` : ''}
+            </span>
+          </div>
+        ` : `
+          <div class="rs-comparativa neutral">
+            <span class="rs-comp-icono">📊</span>
+            <span class="rs-comp-texto">Sin datos de la semana anterior para comparar</span>
+          </div>
+        `}
+
+        <!-- Día más caro -->
+        ${diaMasCaro ? `
+          <div class="rs-insight">
+            <span class="rs-insight-icono">💸</span>
+            <span>El <strong>${diaMasCaro.nombre}</strong> fue tu día más costoso: ${Parser.formatCOP(diaMasCaro.total)}</span>
+          </div>
+        ` : ''}
+
+        <!-- Top categorías -->
+        ${topCats.length ? `
+          <div class="rs-cats">
+            <div class="rs-cats-titulo">Dónde más gastaste</div>
+            ${topCats.map(([slug, monto], i) => {
+              const info = cats[slug] || Parser.CATEGORIAS.otros;
+              const pct = egresosEsta > 0 ? Math.round((monto/egresosEsta)*100) : 0;
+              const colores = ['#f87171','#fb923c','#fbbf24'];
+              return `
+                <div class="rs-cat-item">
+                  <span class="rs-cat-emoji">${info.emoji}</span>
+                  <div class="rs-cat-info">
+                    <div class="rs-cat-nombre">${info.nombre || slug}</div>
+                    <div class="rs-cat-bar-wrap">
+                      <div class="rs-cat-bar" style="width:${pct}%;background:${colores[i]}"></div>
+                    </div>
+                  </div>
+                  <span class="rs-cat-monto">${Parser.formatCOP(monto)}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+
+        <!-- Días restantes -->
+        ${diasRestantes > 0 ? `
+          <div class="rs-insight">
+            <span class="rs-insight-icono">⏳</span>
+            <span>Quedan <strong>${diasRestantes} días</strong> de semana. A este ritmo cerrarás en ${Parser.formatCOP(egresosEsta + promDiario * diasRestantes)}.</span>
+          </div>
+        ` : `
+          <div class="rs-insight">
+            <span class="rs-insight-icono">✅</span>
+            <span>Semana cerrada. Total gastado: <strong>${Parser.formatCOP(egresosEsta)}</strong></span>
+          </div>
+        `}
       </div>
     `;
   }
