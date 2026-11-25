@@ -289,10 +289,17 @@ const App = (() => {
             </button>
           </div>
         </div>
-        <div class="multi-item-monto-wrap">
-          <span class="multi-currency">$</span>
-          <input type="text" class="multi-monto-input" data-index="${i}"
-            placeholder="0" inputmode="numeric" autocomplete="off" />
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="multi-item-monto-wrap">
+            <span class="multi-currency">$</span>
+            <input type="text" class="multi-monto-input" data-index="${i}"
+              placeholder="0" inputmode="numeric" autocomplete="off" />
+          </div>
+          <button class="multi-item-del" data-index="${i}" title="Eliminar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     `;
@@ -323,13 +330,43 @@ const App = (() => {
           _productosDetectados[idx].categoria = nuevaCat;
           _productosDetectados[idx].emoji = info.emoji;
           _productosDetectados[idx].nombre = info.nombre || nuevaCat;
-          // Actualizar el ítem en el DOM
           const item = panel.querySelector(`.multi-item[data-index="${idx}"]`);
           if (item) {
             item.querySelector('.multi-item-emoji').textContent = info.emoji;
             item.querySelector('.multi-item-cat-btn').textContent = `${info.nombre || nuevaCat} ✎`;
           }
         });
+      });
+    });
+
+    // Botones eliminar ítem
+    panel.querySelectorAll('.multi-item-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.index);
+        _productosDetectados.splice(idx, 1);
+        // Reconstruir el panel con los índices actualizados
+        const lista = document.getElementById('multi-lista');
+        lista.innerHTML = _productosDetectados.map((p, i) => buildMultiItem(p, i)).join('');
+        // Actualizar header y botón
+        panel.querySelector('.multi-titulo').textContent =
+          `📦 ${_productosDetectados.length} productos — agrega el valor de cada uno`;
+        document.getElementById('btn-guardar').innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>Guardar ${_productosDetectados.length} movimientos`;
+        // Si queda 1 solo ítem, volver a modo simple
+        if (_productosDetectados.length <= 1) {
+          if (_productosDetectados.length === 1) {
+            resetMulti();
+            mostrarCatDetectada(_productosDetectados[0]?.categoria || 'otros');
+          } else {
+            resetMulti();
+          }
+          return;
+        }
+        recalcularTotalMulti();
+        bindMultiItemEvents(); // re-bind con índices actualizados
       });
     });
   }

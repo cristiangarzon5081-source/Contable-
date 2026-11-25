@@ -837,3 +837,12 @@ textarea.input-desc {
   margin-bottom: 2px; transition: background 0.15s;
 }
 .cat-item-tappable:active { background: var(--bg3); }
+
+/* Botón eliminar ítem del panel multi */
+.multi-item-del {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  background: rgba(239,68,68,0.12); border: none; color: #f87171;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.multi-item-del:active { opacity: 0.6; }
