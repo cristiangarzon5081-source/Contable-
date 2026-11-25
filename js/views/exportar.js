@@ -124,7 +124,11 @@ const ExportarView = (() => {
     // Archivo Excel
     if (file.name.match(/\.xlsx$/i)) {
       if (typeof XLSX === 'undefined') {
-        mostrarToast('⚠️ Importar Excel requiere conexión a internet');
+        document.getElementById('import-preview').innerHTML = `
+          <div class="import-preview-vacio">
+            ⚠️ Para importar archivos Excel necesitas conexión a internet la primera vez.<br><br>
+            <strong>Solución:</strong> Borra los datos del sitio en Chrome → vuelve a abrir la app con wifi → selecciona el archivo de nuevo.
+          </div>`;
         return;
       }
       const reader = new FileReader();
@@ -503,7 +507,7 @@ const ExportarView = (() => {
     if (!preview) return;
 
     if (!_importPreview.length) {
-      preview.innerHTML = `<div class="import-preview-vacio">⚠️ No se encontraron datos válidos. Asegúrate de que el archivo fue exportado desde Contable.</div>`;
+      preview.innerHTML = `<div class="import-preview-vacio">⚠️ No se encontraron datos válidos. Verifica que el archivo tenga columnas de Fecha, Monto y Tipo, o que haya sido exportado desde Contable.</div>`;
       const btn = document.getElementById('btn-importar-confirmar');
       if (btn) btn.classList.add('hidden');
       return;
