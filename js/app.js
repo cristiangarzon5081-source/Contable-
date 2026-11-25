@@ -125,7 +125,6 @@ const App = (() => {
         // Guardar en estado (para cuando pase a modo multi)
         _simpleCatOverride = { slug: nuevaCat, emoji: info2.emoji, nombre: info2.nombre || nuevaCat };
         _simpleTextoAnterior = document.getElementById('input-descripcion').value.trim();
-        console.log('[simple] override guardado:', _simpleCatOverride.slug, '| texto:', _simpleTextoAnterior);
       });
     };
   }
@@ -221,7 +220,6 @@ const App = (() => {
         const textoNorm = Parser.normalizar(p.texto);
         const anteriorNorm = Parser.normalizar(_simpleTextoAnterior);
         const coincide = anteriorNorm.includes(textoNorm) || textoNorm.includes(anteriorNorm);
-        console.log('[multi] buscando override:', textoNorm, '| anterior:', anteriorNorm, '| coincide:', coincide, '| override:', _simpleCatOverride?.slug);
         if (coincide) {
           overrideSimpleAplicado = true;
           return {
@@ -263,6 +261,16 @@ const App = (() => {
     panel.classList.remove('hidden');
 
     bindMultiItemEvents();
+
+    // Actualizar visualmente los ítems que recibieron override (categoría preservada)
+    // El HTML se construyó con los datos del parser, pero _productosDetectados ya tiene
+    // las categorías corregidas — hay que sincronizar el DOM con el estado real.
+    _productosDetectados.forEach((p, i) => {
+      const item = panel.querySelector(`.multi-item[data-index="${i}"]`);
+      if (!item) return;
+      item.querySelector('.multi-item-emoji').textContent = p.emoji;
+      item.querySelector('.multi-item-cat-btn').textContent = `${p.nombre} ✎`;
+    });
 
     // Cambiar botón
     document.getElementById('btn-guardar').innerHTML = `
