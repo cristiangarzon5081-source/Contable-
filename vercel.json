@@ -1,0 +1,4 @@
+{
+  "buildCommand": "curl -s https://unpkg.com/xlsx/dist/xlsx.full.min.js -o js/vendor/xlsx.min.js || curl -s https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js -o js/vendor/xlsx.min.js || echo 'SheetJS download failed'",
+  "outputDirectory": "."
+}

@@ -496,8 +496,24 @@
   </div>
 
   <!-- SheetJS para exportar/importar .xlsx -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
-    onerror="window._xlsxNoDisp=true;console.warn('SheetJS no disponible — solo CSV')"></script>
+  <!-- Se sirve localmente (generado en build) con fallback a CDN -->
+  <script>
+    (function() {
+      var s = document.createElement('script');
+      s.src = 'js/vendor/xlsx.min.js';
+      s.onerror = function() {
+        // Fallback: intentar unpkg
+        var s2 = document.createElement('script');
+        s2.src = 'https://unpkg.com/xlsx/dist/xlsx.full.min.js';
+        s2.onerror = function() {
+          window._xlsxNoDisp = true;
+          console.warn('SheetJS no disponible');
+        };
+        document.head.appendChild(s2);
+      };
+      document.head.appendChild(s);
+    })();
+  </script>
 
   <script src="js/db.js"></script>
   <script src="js/parser.js"></script>

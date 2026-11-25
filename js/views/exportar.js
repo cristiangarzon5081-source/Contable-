@@ -61,12 +61,17 @@ const ExportarView = (() => {
     document.getElementById('export-inc-prestamos').onchange = actualizarPreview;
 
     document.getElementById('btn-export-csv').onclick = () => exportar('csv');
-    document.getElementById('btn-export-xlsx').onclick = () => exportar('xlsx');
+    document.getElementById('btn-export-xlsx').onclick = () => {
+      esperarXLSX(5000).then(ok => {
+        if (!ok) { mostrarToast('⚠️ Excel no disponible sin conexión. Usa CSV.'); return; }
+        exportar('xlsx');
+      });
+    };
     document.getElementById('btn-export-txt').onclick = () => exportar('txt');
 
-    // Mostrar/ocultar el botón xlsx según disponibilidad de SheetJS
+    // Mostrar el botón xlsx siempre — esperarXLSX lo maneja al hacer click
     const btnXlsx = document.getElementById('btn-export-xlsx');
-    if (btnXlsx) btnXlsx.style.display = (typeof XLSX !== 'undefined') ? '' : 'none';
+    if (btnXlsx) btnXlsx.style.display = '';
   }
 
   // ── BINDINGS IMPORTAR ────────────────────────────────────────────
@@ -112,8 +117,20 @@ const ExportarView = (() => {
     }
   }
 
-  // ── IMPORTAR CSV ─────────────────────────────────────────────────
+  // ── IMPORTAR CSV / XLSX ─────────────────────────────────────────
   let _importPreview = [];
+
+  // Espera a que SheetJS cargue (script dinámico asíncrono)
+  function esperarXLSX(timeoutMs) {
+    return new Promise(resolve => {
+      if (typeof XLSX !== 'undefined') { resolve(true); return; }
+      const ini = Date.now();
+      const id = setInterval(() => {
+        if (typeof XLSX !== 'undefined') { clearInterval(id); resolve(true); }
+        else if (Date.now() - ini > timeoutMs) { clearInterval(id); resolve(false); }
+      }, 150);
+    });
+  }
 
   function leerArchivoCSV(file) {
     if (!file.name.match(/\.(csv|txt|xlsx)$/i)) {
@@ -123,15 +140,17 @@ const ExportarView = (() => {
 
     // Archivo Excel
     if (file.name.match(/\.xlsx$/i)) {
-      if (typeof XLSX === 'undefined') {
-        document.getElementById('import-preview').innerHTML = `
-          <div class="import-preview-vacio">
-            ⚠️ Para importar archivos Excel necesitas conexión a internet la primera vez.<br><br>
-            <strong>Solución:</strong> Borra los datos del sitio en Chrome → vuelve a abrir la app con wifi → selecciona el archivo de nuevo.
-          </div>`;
-        return;
-      }
-      const reader = new FileReader();
+      // Esperar hasta 6 segundos a que SheetJS cargue (carga asíncrona)
+      esperarXLSX(6000).then(disponible => {
+        if (!disponible) {
+          document.getElementById('import-preview').innerHTML = `
+            <div class="import-preview-vacio">
+              ⚠️ Para importar archivos Excel necesitas conexión a internet la primera vez.<br><br>
+              <strong>Solución:</strong> Borra los datos del sitio en Chrome → vuelve a abrir la app con wifi → selecciona el archivo de nuevo.
+            </div>`;
+          return;
+        }
+        const reader = new FileReader();
       reader.onload = e => {
         try {
           const data = new Uint8Array(e.target.result);
@@ -170,6 +189,7 @@ const ExportarView = (() => {
         }
       };
       reader.readAsArrayBuffer(file);
+      }); // fin esperarXLSX
       return;
     }
 
