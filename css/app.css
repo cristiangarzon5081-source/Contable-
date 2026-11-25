@@ -1213,3 +1213,10 @@ textarea.input-desc {
 .comp-cat-monto {
   font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0;
 }
+
+/* Botón Excel */
+.btn-export-xlsx {
+  background: #217346; /* verde Excel */
+  color: white;
+}
+.btn-export-xlsx:active { opacity: 0.8; }

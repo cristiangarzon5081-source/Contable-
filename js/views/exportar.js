@@ -43,7 +43,7 @@ const ExportarView = (() => {
 
   // ── BINDINGS EXPORTAR ───────────────────────────────────────────
   function bindExportar() {
-    ['btn-export-csv','btn-export-txt'].forEach(id => {
+    ['btn-export-csv','btn-export-xlsx','btn-export-txt'].forEach(id => {
       const btn = document.getElementById(id);
       if (!btn) return;
       const nuevo = btn.cloneNode(true);
@@ -61,7 +61,12 @@ const ExportarView = (() => {
     document.getElementById('export-inc-prestamos').onchange = actualizarPreview;
 
     document.getElementById('btn-export-csv').onclick = () => exportar('csv');
+    document.getElementById('btn-export-xlsx').onclick = () => exportar('xlsx');
     document.getElementById('btn-export-txt').onclick = () => exportar('txt');
+
+    // Mostrar/ocultar el botón xlsx según disponibilidad de SheetJS
+    const btnXlsx = document.getElementById('btn-export-xlsx');
+    if (btnXlsx) btnXlsx.style.display = (typeof XLSX !== 'undefined') ? '' : 'none';
   }
 
   // ── BINDINGS IMPORTAR ────────────────────────────────────────────
@@ -111,10 +116,44 @@ const ExportarView = (() => {
   let _importPreview = [];
 
   function leerArchivoCSV(file) {
-    if (!file.name.match(/\.(csv|txt)$/i)) {
-      mostrarToast('⚠️ Selecciona un archivo .csv');
+    if (!file.name.match(/\.(csv|txt|xlsx)$/i)) {
+      mostrarToast('⚠️ Selecciona un archivo .csv o .xlsx');
       return;
     }
+
+    // Archivo Excel
+    if (file.name.match(/\.xlsx$/i)) {
+      if (typeof XLSX === 'undefined') {
+        mostrarToast('⚠️ Importar Excel requiere conexión a internet');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          // Convertir cada hoja a CSV y procesar
+          let csvTotal = '';
+          for (const sheetName of wb.SheetNames) {
+            const ws = wb.Sheets[sheetName];
+            const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+            // Usar el nombre de hoja como encabezado de sección
+            if (sheetName.toLowerCase().includes('movimiento')) {
+              csvTotal += 'MOVIMIENTOS\n' + csv + '\n\n';
+            } else if (sheetName.toLowerCase().includes('pr')) {
+              csvTotal += 'PRÉSTAMOS\n' + csv + '\n\n';
+            }
+          }
+          procesarCSV(csvTotal);
+        } catch (err) {
+          mostrarToast('⚠️ No se pudo leer el archivo Excel');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    // CSV / TXT
     const reader = new FileReader();
     reader.onload = e => {
       let texto = e.target.result;
@@ -397,6 +436,8 @@ const ExportarView = (() => {
 
     if (formato === 'csv') {
       generarCSV(movimientos, prestamos, cats, cuentaLabels, desde, hasta);
+    } else if (formato === 'xlsx') {
+      generarXLSX(movimientos, prestamos, cats, cuentaLabels, desde, hasta);
     } else {
       generarTexto(movimientos, prestamos, cats, cuentaLabels, desde, hasta);
     }
@@ -461,7 +502,92 @@ const ExportarView = (() => {
     document.getElementById('modal-exportar').classList.add('hidden');
   }
 
-  // ── TEXTO PLANO (para compartir) ─────────────────────────────────
+  // ── XLSX ─────────────────────────────────────────────────────────
+  function generarXLSX(movimientos, prestamos, cats, cuentaLabels, desde, hasta) {
+    if (typeof XLSX === 'undefined') {
+      mostrarToast('⚠️ Excel no disponible sin conexión. Usa CSV.');
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // ── Hoja 1: Movimientos ──────────────────────────────────────
+    if (movimientos.length) {
+      const filas = [
+        ['Fecha', 'Tipo', 'Descripción', 'Categoría', 'Monto', 'Cuenta']
+      ];
+      for (const m of movimientos) {
+        const info = cats[m.categoria] || Parser.CATEGORIAS.otros;
+        filas.push([
+          m.fecha,
+          m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso',
+          m.descripcion || '',
+          info.nombre || m.categoria,
+          Math.round(m.monto),
+          cuentaLabels[m.cuenta] || m.cuenta
+        ]);
+      }
+      // Fila vacía + resumen al final
+      filas.push([]);
+      const ingresos = movimientos.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+      const egresos  = movimientos.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+      filas.push(['Total ingresos', '', '', '', Math.round(ingresos), '']);
+      filas.push(['Total egresos',  '', '', '', Math.round(egresos),  '']);
+      filas.push(['Saldo',          '', '', '', Math.round(ingresos-egresos), '']);
+
+      const ws = XLSX.utils.aoa_to_sheet(filas);
+
+      // Ancho de columnas
+      ws['!cols'] = [
+        { wch: 12 }, { wch: 10 }, { wch: 35 }, { wch: 20 }, { wch: 15 }, { wch: 16 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+    }
+
+    // ── Hoja 2: Préstamos ────────────────────────────────────────
+    if (prestamos.length) {
+      const filas = [
+        ['Persona', 'Tipo', 'Monto original', 'Interés %', 'Estado', 'Fecha inicio', 'Fecha fin', 'Nota']
+      ];
+      for (const p of prestamos) {
+        filas.push([
+          p.persona,
+          p.tipo === 'debo' ? 'Yo debo' : 'Me deben',
+          Math.round(p.montoOriginal),
+          p.interesMensual || 0,
+          p.estado === 'activo' ? 'Activo' : 'Liquidado',
+          p.fechaInicio || '',
+          p.fechaFin || '',
+          p.nota || ''
+        ]);
+      }
+      const ws2 = XLSX.utils.aoa_to_sheet(filas);
+      ws2['!cols'] = [{ wch: 20 },{ wch: 12 },{ wch: 16 },{ wch: 10 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, ws2, 'Préstamos');
+    }
+
+    // ── Hoja 3: Resumen por categoría ───────────────────────────
+    if (movimientos.length) {
+      const porCat = {};
+      for (const m of movimientos.filter(m=>m.tipo==='egreso')) {
+        const info = cats[m.categoria] || Parser.CATEGORIAS.otros;
+        const nombre = info.nombre || m.categoria;
+        porCat[nombre] = (porCat[nombre] || 0) + m.monto;
+      }
+      const filasRes = [['Categoría', 'Total egresos', '% del total']];
+      const totalEg = Object.values(porCat).reduce((s,v)=>s+v,0);
+      Object.entries(porCat).sort((a,b)=>b[1]-a[1]).forEach(([nombre, monto]) => {
+        filasRes.push([nombre, Math.round(monto), totalEg>0?Math.round((monto/totalEg)*100)+'%':'0%']);
+      });
+      const ws3 = XLSX.utils.aoa_to_sheet(filasRes);
+      ws3['!cols'] = [{ wch: 22 },{ wch: 16 },{ wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Por categoría');
+    }
+
+    const nombre = `contable_${desde||'todo'}_${hasta||'hoy'}.xlsx`;
+    XLSX.writeFile(wb, nombre);
+    document.getElementById('modal-exportar').classList.add('hidden');
+  }
   async function generarTexto(movimientos, prestamos, cats, cuentaLabels, desde, hasta) {
     const hoy = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric' });
     let txt = `📊 CONTABLE — Reporte financiero\n`;

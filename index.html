@@ -398,13 +398,22 @@
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
             </svg>
-            Descargar CSV
+            CSV
+          </button>
+          <button id="btn-export-xlsx" class="btn-export btn-export-xlsx">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            Excel (.xlsx)
           </button>
           <button id="btn-export-txt" class="btn-export btn-export-sec">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
-            Compartir texto
+            Compartir
           </button>
         </div>
       </div>
@@ -420,8 +429,8 @@
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text3)">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 18 12 22 8 18"/><line x1="12" y1="22" x2="12" y2="9"/>
           </svg>
-          <span class="import-drop-texto">Toca para seleccionar el archivo .csv</span>
-          <input type="file" id="import-file-input" accept=".csv,.txt" style="display:none;" />
+          <span class="import-drop-texto">Toca para seleccionar el archivo .csv o .xlsx</span>
+          <input type="file" id="import-file-input" accept=".csv,.txt,.xlsx" style="display:none;" />
         </div>
 
         <!-- Preview de lo que se va a importar -->
@@ -485,6 +494,10 @@
       </button>
     </div>
   </div>
+
+  <!-- SheetJS para exportar/importar .xlsx -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+    onerror="window._xlsxNoDisp=true;console.warn('SheetJS no disponible — solo CSV')"></script>
 
   <script src="js/db.js"></script>
   <script src="js/parser.js"></script>
