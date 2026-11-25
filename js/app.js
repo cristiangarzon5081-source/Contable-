@@ -191,7 +191,7 @@ const App = (() => {
       </svg>Guardar`;
   }
 
-  // Limpia fragmento para comparación robusta: quita conjunciones y verbos iniciales
+  // Limpia fragmento para comparación: quita conjunciones y artículos iniciales
   function limpiarFragmento(texto) {
     return Parser.normalizar(texto)
       .replace(/^(y |e |mas |también |tambien |además |ademas |compre |compré |un |una |unos |unas |el |la |los |las )/i, '')
@@ -201,44 +201,51 @@ const App = (() => {
   function activarModoMulti(productosNuevos) {
     _modoMulti = true;
 
-    // ── FUSIONAR: preservar todo lo que el usuario ya corrigió ────
-    // Indexar por texto limpio (sin "y", artículos, verbos iniciales)
-    // para que "y una caja de carve" y "caja de carve" sean el mismo ítem
-    const anteriorPorTextoNorm = {};
-    for (const p of _productosDetectados) {
-      anteriorPorTextoNorm[limpiarFragmento(p.texto)] = p;
-    }
+    // ── ENFOQUE: nunca tocar ítems que ya están en el panel ──────
+    //
+    // En lugar de intentar reconciliar listas (que falla por variaciones
+    // de texto), simplemente:
+    // 1. Mantener TODOS los ítems que ya existen en _productosDetectados
+    // 2. Agregar solo los que son genuinamente nuevos (no estaban antes)
+    //
+    // Para detectar "nuevo": si ningún ítem existente contiene
+    // el texto limpio del producto nuevo como substring, es nuevo.
 
-    // Aplicar override de modo simple si existe
-    let overrideSimpleAplicado = false;
+    if (_productosDetectados.length === 0) {
+      // Primera vez — aplicar override simple si existe, luego cargar todo
+      let overrideSimpleAplicado = false;
+      _productosDetectados = productosNuevos.map(p => {
+        if (!overrideSimpleAplicado && _simpleCatOverride) {
+          const limpio = limpiarFragmento(p.texto);
+          const anteriorLimpio = limpiarFragmento(_simpleTextoAnterior);
+          if (anteriorLimpio.includes(limpio) || limpio.includes(anteriorLimpio)) {
+            overrideSimpleAplicado = true;
+            return { ...p, categoria: _simpleCatOverride.slug, emoji: _simpleCatOverride.emoji, nombre: _simpleCatOverride.nombre, monto: 0 };
+          }
+        }
+        return { ...p, monto: 0 };
+      });
+    } else {
+      // Ya hay ítems — solo agregar los nuevos, nunca modificar los existentes
+      const claveExistentes = _productosDetectados.map(p => limpiarFragmento(p.texto));
 
-    // Construir la lista final: para cada producto nuevo del parser,
-    // usar la versión corregida si ya existía, o la automática si es nuevo
-    const productosFinal = productosNuevos.map(p => {
-      const limpio = limpiarFragmento(p.texto);
-
-      // ¿Ya existía con clave limpia equivalente? → preservar todo
-      if (anteriorPorTextoNorm[limpio]) {
-        return { ...anteriorPorTextoNorm[limpio], texto: p.texto };
-      }
-
-      // ¿Coincide con el texto del override de modo simple?
-      if (!overrideSimpleAplicado && _simpleCatOverride) {
-        const anteriorNorm = limpiarFragmento(_simpleTextoAnterior);
-        if (anteriorNorm.includes(limpio) || limpio.includes(anteriorNorm)) {
-          overrideSimpleAplicado = true;
-          return { ...p, categoria: _simpleCatOverride.slug, emoji: _simpleCatOverride.emoji, nombre: _simpleCatOverride.nombre, monto: 0 };
+      for (const pNuevo of productosNuevos) {
+        const limpioNuevo = limpiarFragmento(pNuevo.texto);
+        // ¿Algún ítem existente ya cubre este producto?
+        const yaExiste = claveExistentes.some(clave =>
+          clave === limpioNuevo ||
+          clave.includes(limpioNuevo) ||
+          limpioNuevo.includes(clave)
+        );
+        if (!yaExiste) {
+          _productosDetectados.push({ ...pNuevo, monto: 0 });
+          claveExistentes.push(limpioNuevo);
         }
       }
+    }
 
-      // Producto nuevo — usar categoría automática del parser
-      return { ...p, monto: 0 };
-    });
-
-    _productosDetectados = productosFinal;
     _simpleCatOverride = null;
     _simpleTextoAnterior = '';
-
     ocultarCatDetectada();
 
     // Bloquear el campo de monto — se calcula automático
@@ -267,7 +274,7 @@ const App = (() => {
     document.getElementById('btn-guardar').innerHTML = `
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="20 6 9 17 4 12"/>
-      </svg>Guardar ${productos.length} movimientos`;
+      </svg>Guardar ${_productosDetectados.length} movimientos`;
   }
 
   function buildMultiItem(p, i) {
