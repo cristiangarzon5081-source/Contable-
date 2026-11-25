@@ -125,6 +125,7 @@ const App = (() => {
         // Guardar en estado (para cuando pase a modo multi)
         _simpleCatOverride = { slug: nuevaCat, emoji: info2.emoji, nombre: info2.nombre || nuevaCat };
         _simpleTextoAnterior = document.getElementById('input-descripcion').value.trim();
+        console.log('[simple] override guardado:', _simpleCatOverride.slug, '| texto:', _simpleTextoAnterior);
       });
     };
   }
@@ -219,9 +220,8 @@ const App = (() => {
       if (!overrideSimpleAplicado && _simpleCatOverride) {
         const textoNorm = Parser.normalizar(p.texto);
         const anteriorNorm = Parser.normalizar(_simpleTextoAnterior);
-        // Verificar si el fragmento actual está contenido en el texto anterior simple
-        // o si el texto anterior contiene el fragmento
         const coincide = anteriorNorm.includes(textoNorm) || textoNorm.includes(anteriorNorm);
+        console.log('[multi] buscando override:', textoNorm, '| anterior:', anteriorNorm, '| coincide:', coincide, '| override:', _simpleCatOverride?.slug);
         if (coincide) {
           overrideSimpleAplicado = true;
           return {
