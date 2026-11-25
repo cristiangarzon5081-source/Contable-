@@ -132,20 +132,36 @@ const ExportarView = (() => {
         try {
           const data = new Uint8Array(e.target.result);
           const wb = XLSX.read(data, { type: 'array' });
-          // Convertir cada hoja a CSV y procesar
-          let csvTotal = '';
+
+          // Intentar detectar el formato de cada hoja
+          let encontrado = false;
           for (const sheetName of wb.SheetNames) {
             const ws = wb.Sheets[sheetName];
-            const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
-            // Usar el nombre de hoja como encabezado de sección
-            if (sheetName.toLowerCase().includes('movimiento')) {
-              csvTotal += 'MOVIMIENTOS\n' + csv + '\n\n';
-            } else if (sheetName.toLowerCase().includes('pr')) {
-              csvTotal += 'PRÉSTAMOS\n' + csv + '\n\n';
+            // Obtener como array de arrays (incluye filas vacías = false)
+            const filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            if (!filas.length) continue;
+
+            // Detectar formato del archivo
+            const formato = detectarFormatoXLSX(filas);
+            if (formato === 'contable') {
+              // Formato propio de Contable: convertir a CSV y procesar normal
+              const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+              const nombre = sheetName.toLowerCase();
+              if (nombre.includes('movimiento')) procesarCSV('MOVIMIENTOS\n' + csv);
+              else if (nombre.includes('pr')) procesarCSV('PRÉSTAMOS\n' + csv);
+              else procesarCSV('MOVIMIENTOS\n' + csv);
+              encontrado = true;
+              break;
+            } else if (formato === 'externo') {
+              // Formato externo: usar el parser universal
+              procesarFilasXLSX(filas);
+              encontrado = true;
+              break;
             }
           }
-          procesarCSV(csvTotal);
+          if (!encontrado) mostrarToast('⚠️ No se reconoció el formato del archivo');
         } catch (err) {
+          console.error(err);
           mostrarToast('⚠️ No se pudo leer el archivo Excel');
         }
       };
@@ -161,6 +177,207 @@ const ExportarView = (() => {
       procesarCSV(texto);
     };
     reader.readAsText(file, 'UTF-8');
+  }
+
+  // ── DETECCIÓN Y PROCESAMIENTO DE XLSX EXTERNO ─────────────────
+
+  /**
+   * Analiza las primeras filas del sheet y determina el formato:
+   * 'contable' → exportado por esta app (tiene columna Fecha YYYY-MM-DD)
+   * 'externo'  → archivo de otra app (fecha DD/MM/YYYY, columna Tipo=Gasto/Ingreso)
+   * null       → no reconocido
+   */
+  function detectarFormatoXLSX(filas) {
+    // Buscar la primera fila que parezca de datos (no título)
+    for (const fila of filas.slice(0, 10)) {
+      const vals = fila.map(v => String(v || '').trim());
+      // Formato Contable: fecha ISO en alguna columna
+      if (vals.some(v => /^\d{4}-\d{2}-\d{2}$/.test(v))) return 'contable';
+      // Formato externo: fecha DD/MM/YYYY HH:MM o DD/MM/YYYY
+      if (vals.some(v => /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v))) return 'externo';
+    }
+    // Revisar headers: si tiene columna "Tipo" con valores Gasto/Ingreso → externo
+    for (const fila of filas.slice(0, 5)) {
+      const vals = fila.map(v => String(v||'').toLowerCase());
+      if (vals.includes('gasto') || vals.includes('ingreso')) return 'externo';
+    }
+    return null;
+  }
+
+  /**
+   * Procesa un array de filas de un XLSX externo.
+   * Detecta automáticamente qué columna es fecha, monto, descripción y tipo.
+   */
+  function procesarFilasXLSX(filas) {
+    _importPreview = [];
+
+    // Encontrar la fila de headers o la primera fila de datos
+    let headerIdx = -1;
+    let mapa = null; // { fecha, monto, descripcion, tipo, categoria, cuenta }
+
+    for (let i = 0; i < Math.min(filas.length, 15); i++) {
+      const fila = filas[i].map(v => String(v || '').trim());
+      const filaLow = fila.map(v => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+
+      // Intentar mapear columnas por nombre
+      const mapIntento = intentarMapearHeaders(filaLow);
+      if (mapIntento) { headerIdx = i; mapa = mapIntento; break; }
+
+      // Si la fila tiene fecha válida, es de datos — intentar mapear por posición
+      if (fila.some(v => /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v))) {
+        mapa = mapearPorPosicion(filas);
+        headerIdx = -1; // sin fila de headers
+        break;
+      }
+    }
+
+    if (!mapa) { mostrarToast('⚠️ No se reconoció la estructura del archivo'); return; }
+
+    // Procesar filas de datos
+    const inicio = headerIdx >= 0 ? headerIdx + 1 : 0;
+    for (let i = inicio; i < filas.length; i++) {
+      const fila = filas[i].map(v => String(v || '').trim());
+      if (fila.every(v => !v)) continue; // fila vacía
+
+      const mov = extraerMovimientoFila(fila, mapa);
+      if (mov) _importPreview.push({ tipo: 'movimiento', datos: mov });
+    }
+
+    mostrarPreviewImportacion();
+  }
+
+  function intentarMapearHeaders(filaLow) {
+    let fecha = -1, monto = -1, desc = -1, tipo = -1, cat = -1, cuenta = -1;
+
+    filaLow.forEach((h, i) => {
+      if (fecha < 0 && (h.includes('fecha') || h === 'date')) fecha = i;
+      if (monto < 0 && (h.includes('monto') || h.includes('valor') || h.includes('amount') || h.includes('importe') || h === 'total')) monto = i;
+      if (desc < 0 && (h.includes('descri') || h.includes('concepto') || h.includes('detalle') || h.includes('nota') || h === 'descripcion')) desc = i;
+      if (tipo < 0 && (h === 'tipo' || h === 'type' || h === 'gasto' || h.includes('ingreso') || h.includes('egreso'))) tipo = i;
+      if (cat < 0 && (h.includes('categ') || h.includes('rubro') || h.includes('clasificacion'))) cat = i;
+      if (cuenta < 0 && (h.includes('cuenta') || h.includes('medio') || h.includes('metodo') || h === 'efectivo')) cuenta = i;
+    });
+
+    // Mínimo necesario: fecha y monto
+    if (fecha < 0 || monto < 0) return null;
+    return { fecha, monto, desc, tipo, cat, cuenta };
+  }
+
+  /**
+   * Para el formato específico detectado en la imagen:
+   * A=num, B=fecha, C=cuenta, D=categoria, E=subcategoria, F=descripcion, G=monto, H=tipo
+   */
+  function mapearPorPosicion(filas) {
+    // Buscar una fila con fecha en columna B (índice 1)
+    for (const fila of filas) {
+      const vals = fila.map(v => String(v || '').trim());
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(vals[1] || '')) {
+        // Confirmar que columna G tiene un número y H tiene Gasto/Ingreso
+        const montoOk = !isNaN(parseFloat(String(vals[6] || '').replace(/[^0-9.,]/g, '')));
+        const tipoOk = /gasto|ingreso/i.test(vals[7] || '');
+        if (montoOk || tipoOk) {
+          return { fecha: 1, cuenta: 2, cat: 3, subcat: 4, desc: 5, monto: 6, tipo: 7 };
+        }
+      }
+      // Intentar otras posiciones comunes
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(vals[0] || '')) {
+        return { fecha: 0, desc: 1, cat: 2, monto: 3, tipo: 4, cuenta: -1 };
+      }
+    }
+    return null;
+  }
+
+  function extraerMovimientoFila(fila, mapa) {
+    const get = idx => idx >= 0 && idx < fila.length ? fila[idx].trim() : '';
+
+    // Fecha: convertir DD/MM/YYYY o DD/MM/YYYY HH:MM a YYYY-MM-DD
+    let fechaRaw = get(mapa.fecha);
+    let fecha = '';
+    const matchFecha = fechaRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (matchFecha) {
+      fecha = `${matchFecha[3]}-${matchFecha[2].padStart(2,'0')}-${matchFecha[1].padStart(2,'0')}`;
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(fechaRaw)) {
+      fecha = fechaRaw; // ya en formato ISO
+    }
+    if (!fecha) return null;
+
+    // Monto
+    const montoRaw = get(mapa.monto).replace(/[^0-9.,]/g, '').replace(',', '.');
+    const monto = parseFloat(montoRaw);
+    if (!monto || monto <= 0) return null;
+
+    // Tipo: Gasto→egreso, Ingreso→ingreso
+    const tipoRaw = get(mapa.tipo).toLowerCase();
+    let tipo = 'egreso';
+    if (tipoRaw.includes('ingreso') || tipoRaw.includes('income') || tipoRaw.includes('entrada')) tipo = 'ingreso';
+    else if (tipoRaw.includes('gasto') || tipoRaw.includes('egreso') || tipoRaw.includes('expense') || tipoRaw.includes('salida')) tipo = 'egreso';
+
+    // Descripción
+    const descripcion = get(mapa.desc) || get(mapa.subcat !== undefined ? mapa.subcat : -1) || '';
+
+    // Categoría: intentar detectar automáticamente por la descripción + categoría del archivo
+    const catTexto = get(mapa.cat !== undefined ? mapa.cat : -1);
+    const textoParaCat = descripcion || catTexto;
+    const categoria = Parser.categorizarAuto(textoParaCat) !== 'otros'
+      ? Parser.categorizarAuto(textoParaCat)
+      : mapearCategoriaExterna(catTexto) || 'otros';
+
+    // Cuenta
+    const cuentaRaw = get(mapa.cuenta !== undefined ? mapa.cuenta : -1).toLowerCase();
+    const cuenta = mapearCuentaExterna(cuentaRaw);
+
+    return { tipo, monto, descripcion, categoria, cuenta, fecha };
+  }
+
+  /**
+   * Mapea nombres de categoría de apps externas a slugs de Contable
+   */
+  function mapearCategoriaExterna(texto) {
+    if (!texto) return null;
+    const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const mapa = {
+      'comida': 'alimentacion', 'alimentos': 'alimentacion', 'restaurante': 'alimentacion',
+      'bebidas': 'alimentacion', 'mercado': 'alimentacion', 'supermercado': 'alimentacion',
+      'transporte': 'transporte', 'autobus': 'transporte', 'taxi': 'transporte',
+      'gasolina': 'transporte', 'pasaje': 'transporte', 'uber': 'transporte',
+      'salud': 'salud', 'medicina': 'salud', 'medico': 'salud', 'farmacia': 'salud',
+      'ropa': 'ropa', 'calzado': 'ropa', 'vestimenta': 'ropa',
+      'entretenimiento': 'entretenimiento', 'ocio': 'entretenimiento',
+      'educacion': 'educacion', 'colegio': 'educacion', 'universidad': 'educacion',
+      'servicios': 'servicios_publicos', 'luz': 'servicios_publicos', 'agua': 'servicios_publicos',
+      'internet': 'telecomunicaciones', 'telefono': 'telecomunicaciones',
+      'arriendo': 'arriendo', 'alquiler': 'arriendo',
+      'salario': 'salario', 'sueldo': 'salario', 'nomina': 'salario',
+      'aseo': 'aseo_personal', 'higiene': 'aseo_personal',
+      'hogar': 'hogar_muebles', 'casa': 'hogar_muebles',
+      'mascotas': 'mascotas', 'belleza': 'belleza', 'estetica': 'belleza',
+      'regalo': 'otros', 'regalos': 'otros', 'otros': 'otros',
+      'factura': 'servicios_publicos', 'facturas': 'servicios_publicos',
+      'interes': 'otros', 'intereses': 'otros',
+    };
+    // Buscar coincidencia exacta o parcial
+    for (const [key, slug] of Object.entries(mapa)) {
+      if (t === key || t.includes(key)) return slug;
+    }
+    return null;
+  }
+
+  /**
+   * Mapea nombres de cuenta de apps externas a slugs de Contable
+   */
+  function mapearCuentaExterna(texto) {
+    if (!texto) return 'efectivo';
+    const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (t.includes('efectivo') || t.includes('cash') || t.includes('dinero')) return 'efectivo';
+    if (t.includes('tarjeta') && t.includes('debito')) return 'tarjeta_debito';
+    if (t.includes('tarjeta') && t.includes('credito')) return 'tarjeta_credito';
+    if (t.includes('tarjeta')) return 'tarjeta_debito';
+    if (t.includes('banco') || t.includes('bank') || t.includes('bancolombia') ||
+        t.includes('davivienda') || t.includes('nequi') || t.includes('daviplata')) return 'banco';
+    // Medios de transporte público se ignoran para la cuenta, se usa efectivo
+    if (t.includes('autobus') || t.includes('bus') || t.includes('metro') ||
+        t.includes('sitp') || t.includes('transmilenio')) return 'efectivo';
+    return 'efectivo';
   }
 
   function procesarCSV(texto) {
