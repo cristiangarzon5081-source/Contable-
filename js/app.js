@@ -9,6 +9,9 @@ const App = (() => {
   // Estado del panel multi-producto
   let _productosDetectados = [];
   let _modoMulti = false;
+  // Override de categoría en modo simple (persiste al pasar a modo multi)
+  let _simpleCatOverride = null; // { slug, emoji, nombre }
+  let _simpleTextoAnterior = ''; // texto del producto cuando el usuario corrigió
   // Callback para cuando el usuario elige una categoría en el selector
   let _catSelectorCallback = null;
 
@@ -78,9 +81,10 @@ const App = (() => {
     document.getElementById('select-cuenta').value = 'efectivo';
     ocultarCatDetectada();
     resetMulti();
+    _simpleCatOverride = null;
+    _simpleTextoAnterior = '';
     setTipoMovimiento('egreso');
     document.getElementById('modal-entrada').classList.remove('hidden');
-    // Foco en descripción — es el primer campo ahora
     setTimeout(() => document.getElementById('input-descripcion').focus(), 300);
   }
 
@@ -110,13 +114,17 @@ const App = (() => {
     el.classList.remove('hidden');
     document.getElementById('input-descripcion').style.borderRadius = '12px 12px 0 0';
 
-    // Al tocar el indicador → abrir selector para corregir
+    // Al tocar → abrir selector para corregir
     el.onclick = () => {
       abrirCatSelector(cat, nuevaCat => {
         const info2 = Parser.getCategoriasMerged()[nuevaCat] || Parser.CATEGORIAS.otros;
+        // Guardar en DOM (para guardarMovimiento modo simple)
         el.dataset.catOverride = nuevaCat;
         el.querySelector('.cat-detectada-emoji').textContent = info2.emoji;
         el.querySelector('strong').textContent = info2.nombre || nuevaCat;
+        // Guardar en estado (para cuando pase a modo multi)
+        _simpleCatOverride = { slug: nuevaCat, emoji: info2.emoji, nombre: info2.nombre || nuevaCat };
+        _simpleTextoAnterior = document.getElementById('input-descripcion').value.trim();
       });
     };
   }
@@ -186,28 +194,52 @@ const App = (() => {
   function activarModoMulti(productos) {
     _modoMulti = true;
 
-    // Preservar categorías y montos que el usuario ya corrigió manualmente.
-    // Si un producto (mismo texto) ya estaba en _productosDetectados, conservar
-    // su categoría y monto anteriores.
+    // ── PRESERVAR CORRECCIONES MANUALES ──────────────────────────
+    // Caso 1: venía de modo multi → buscar por texto en _productosDetectados anterior
     const anteriorPorTexto = {};
     for (const p of _productosDetectados) {
       anteriorPorTexto[p.texto] = p;
     }
 
+    // Caso 2: venía de modo simple con un override manual (_simpleCatOverride)
+    // El texto del producto simple era _simpleTextoAnterior.
+    // Cuando el parser analiza ese texto completo ("compré 3 afeitadoras"),
+    // lo convierte en un fragmento ("3 afeitadoras" o "afeitadoras").
+    // Necesitamos encontrar cuál de los nuevos productos corresponde a ese texto.
+    let overrideSimpleAplicado = false;
+
     _productosDetectados = productos.map(p => {
+      // Prioridad 1: ya existía en modo multi anterior con la misma descripción
       const anterior = anteriorPorTexto[p.texto];
       if (anterior) {
-        // Este producto ya existía — preservar lo que el usuario cambió
-        return {
-          ...p,
-          categoria: anterior.categoria,
-          emoji:     anterior.emoji,
-          nombre:    anterior.nombre,
-          monto:     anterior.monto || 0
-        };
+        return { ...p, categoria: anterior.categoria, emoji: anterior.emoji, nombre: anterior.nombre, monto: anterior.monto || 0 };
       }
+
+      // Prioridad 2: coincide con el texto que tenía cuando el usuario corrigió en modo simple
+      if (!overrideSimpleAplicado && _simpleCatOverride) {
+        const textoNorm = Parser.normalizar(p.texto);
+        const anteriorNorm = Parser.normalizar(_simpleTextoAnterior);
+        // Verificar si el fragmento actual está contenido en el texto anterior simple
+        // o si el texto anterior contiene el fragmento
+        const coincide = anteriorNorm.includes(textoNorm) || textoNorm.includes(anteriorNorm);
+        if (coincide) {
+          overrideSimpleAplicado = true;
+          return {
+            ...p,
+            categoria: _simpleCatOverride.slug,
+            emoji:     _simpleCatOverride.emoji,
+            nombre:    _simpleCatOverride.nombre,
+            monto:     0
+          };
+        }
+      }
+
       return { ...p, monto: 0 };
     });
+
+    // Limpiar el override simple — ya fue aplicado (o no aplica)
+    _simpleCatOverride = null;
+    _simpleTextoAnterior = '';
 
     ocultarCatDetectada();
 
@@ -317,7 +349,13 @@ const App = (() => {
     inputDesc.addEventListener('input', () => {
       clearTimeout(catTimeout);
       const texto = inputDesc.value.trim();
-      if (!texto) { ocultarCatDetectada(); resetMulti(); return; }
+      if (!texto) {
+        ocultarCatDetectada();
+        resetMulti();
+        _simpleCatOverride = null;
+        _simpleTextoAnterior = '';
+        return;
+      }
 
       catTimeout = setTimeout(() => {
         // Si el usuario ya corrigió la categoría manualmente, no sobreescribir
