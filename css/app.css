@@ -1089,3 +1089,17 @@ textarea.input-desc {
 .pastel-ley-pct { color: var(--text3); flex-shrink: 0; }
 
 .cat-activa { background: var(--bg3) !important; border-radius: 10px; }
+
+/* ── TOGGLE EGRESOS / INGRESOS ─────────────────────────────────── */
+.stats-tipo-row {
+  display: flex; margin: 0 16px 12px;
+  background: var(--bg3); border-radius: 10px; padding: 3px; gap: 3px;
+}
+.stats-tipo-btn {
+  flex: 1; padding: 7px; border-radius: 8px;
+  border: none; background: transparent;
+  color: var(--text3); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.stats-tipo-btn.active.egreso  { background: rgba(239,68,68,0.15);  color: #f87171; }
+.stats-tipo-btn.active.ingreso { background: rgba(16,185,129,0.15); color: #34d399; }
