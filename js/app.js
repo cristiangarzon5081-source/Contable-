@@ -191,14 +191,22 @@ const App = (() => {
       </svg>Guardar`;
   }
 
+  // Limpia fragmento para comparación robusta: quita conjunciones y verbos iniciales
+  function limpiarFragmento(texto) {
+    return Parser.normalizar(texto)
+      .replace(/^(y |e |mas |también |tambien |además |ademas |compre |compré |un |una |unos |unas |el |la |los |las )/i, '')
+      .trim();
+  }
+
   function activarModoMulti(productosNuevos) {
     _modoMulti = true;
 
     // ── FUSIONAR: preservar todo lo que el usuario ya corrigió ────
-    // Construir mapa de lo que ya existía (por texto normalizado)
+    // Indexar por texto limpio (sin "y", artículos, verbos iniciales)
+    // para que "y una caja de carve" y "caja de carve" sean el mismo ítem
     const anteriorPorTextoNorm = {};
     for (const p of _productosDetectados) {
-      anteriorPorTextoNorm[Parser.normalizar(p.texto)] = p;
+      anteriorPorTextoNorm[limpiarFragmento(p.texto)] = p;
     }
 
     // Aplicar override de modo simple si existe
@@ -207,17 +215,17 @@ const App = (() => {
     // Construir la lista final: para cada producto nuevo del parser,
     // usar la versión corregida si ya existía, o la automática si es nuevo
     const productosFinal = productosNuevos.map(p => {
-      const norm = Parser.normalizar(p.texto);
+      const limpio = limpiarFragmento(p.texto);
 
-      // ¿Ya existía con el mismo texto? → preservar todo
-      if (anteriorPorTextoNorm[norm]) {
-        return { ...anteriorPorTextoNorm[norm] };
+      // ¿Ya existía con clave limpia equivalente? → preservar todo
+      if (anteriorPorTextoNorm[limpio]) {
+        return { ...anteriorPorTextoNorm[limpio], texto: p.texto };
       }
 
       // ¿Coincide con el texto del override de modo simple?
       if (!overrideSimpleAplicado && _simpleCatOverride) {
-        const anteriorNorm = Parser.normalizar(_simpleTextoAnterior);
-        if (anteriorNorm.includes(norm) || norm.includes(anteriorNorm)) {
+        const anteriorNorm = limpiarFragmento(_simpleTextoAnterior);
+        if (anteriorNorm.includes(limpio) || limpio.includes(anteriorNorm)) {
           overrideSimpleAplicado = true;
           return { ...p, categoria: _simpleCatOverride.slug, emoji: _simpleCatOverride.emoji, nombre: _simpleCatOverride.nombre, monto: 0 };
         }
